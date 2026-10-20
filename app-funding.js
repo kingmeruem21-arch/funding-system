@@ -416,29 +416,59 @@ function hapusPenarikan(idKontrak) {
 }
 
 function prosesUploadKartu() {
-    var fileInput = document.getElementById('fileKartuPiutang'); var selectedFasilitas = document.getElementById('pilihFasilitasUpload').value;
+    var fileInput = document.getElementById('fileKartuPiutang');
+    var selectedFasilitas = document.getElementById('pilihFasilitasUpload').value;
+
+    // 1. Membaca Input ID Kontrak Manual dari HTML
+    var elemIdManual = document.getElementById('idKontrakManual');
+    var idKontrakManual = elemIdManual ? elemIdManual.value.trim() : "";
+
     if (!selectedFasilitas) { Swal.fire('Peringatan', 'Pilih Fasilitas tujuan!', 'warning'); return; }
     if (!fileInput.files.length) { Swal.fire('Error', 'Pilih file Excel Kartu Piutang!', 'error'); return; }
 
     var reader = new FileReader();
     reader.onload = function (e) {
         try {
-            var data = new Uint8Array(e.target.result); var workbook = XLSX.read(data, { type: 'array' }); var worksheet = workbook.Sheets[workbook.SheetNames[0]]; var excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-            var namaCustomer = "Tidak Diketahui", idKontrakGen = "KONTRAK-" + Math.floor(1000 + Math.random() * 9000);
+            var data = new Uint8Array(e.target.result);
+            var workbook = XLSX.read(data, { type: 'array' });
+            var worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            var excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+            var namaCustomer = "Tidak Diketahui";
+            // 2. Prioritaskan ID Manual. Jika kosong, buat ID otomatis.
+            var idKontrakGen = idKontrakManual ? idKontrakManual : "KONTRAK-" + Math.floor(1000 + Math.random() * 9000);
             var nilaiPenarikan = 0, tenor = 0, bungaEffResult = "7.00%", tglRealisasi = new Date().toISOString().split('T')[0];
 
             for (var i = 0; i < Math.min(25, excelData.length); i++) {
                 var row = excelData[i]; if (!row) continue;
                 for (var c = 0; c < row.length; c++) {
                     let cellStr = row[c] ? row[c].toString().trim() : "";
-                    if (cellStr.includes("Nama :")) {
-                        let parts = (cellStr.replace("Nama :", "").trim() || (row[c + 1] ? row[c + 1].toString().trim() : "")).split("'");
-                        namaCustomer = parts[0].trim(); if (parts.length > 1) idKontrakGen = parts[1].trim();
+                    if (cellStr.length > 3) {
+                        // Cek apakah pakai format petik tunggal (Budi 'KONTRAK-01)
+                        if (cellStr.includes("'")) {
+                            let parts = cellStr.split("'");
+                            namaCustomer = parts[0].replace(/nama\s*:/i, "").trim();
+                            // Timpa ID otomatis dari Excel HANYA JIKA kolom manual kosong
+                            if (!idKontrakManual && parts.length > 1) idKontrakGen = parts[1].trim();
+                        }
+                        // Cek apakah pakai format "Nama :" biasa
+                        else if (cellStr.toLowerCase().includes("nama :")) {
+                            namaCustomer = cellStr.replace(/nama\s*:/i, "").trim() || (row[c + 1] ? row[c + 1].toString().trim() : "");
+                        }
+                        // Cek file bank tanpa "Nama :" (ambil teks pertama yang cukup panjang sebagai nama)
+                        else if (namaCustomer === "Tidak Diketahui" && !cellStr.includes("Pokok") && !cellStr.includes("Jatuh") && !cellStr.includes("Angsuran") && !cellStr.includes("Tenor")) {
+                            namaCustomer = cellStr;
+                        }
                     }
                 }
+
                 let rowText = row.filter(cell => cell != null && cell.toString().trim() !== "").join(" ");
-                if ((rowText.includes("Pokok") || rowText.includes("Plafond")) && !rowText.includes("Angs")) { for (var c = 0; c < row.length; c++) if (row[c] && !isNaN(parseFloat(row[c])) && parseFloat(row[c]) > 1000) { nilaiPenarikan = parseFloat(row[c]); break; } }
-                if (rowText.includes("Jk. Waktu") || rowText.includes("Tenor")) { for (var c = 0; c < row.length; c++) if (row[c] && !isNaN(parseInt(row[c])) && parseInt(row[c]) > 0 && parseInt(row[c]) < 1000) { tenor = parseInt(row[c]); break; } }
+                if ((rowText.includes("Pokok") || rowText.includes("Plafond")) && !rowText.includes("Angs")) {
+                    for (var c = 0; c < row.length; c++) if (row[c] && !isNaN(parseFloat(row[c])) && parseFloat(row[c]) > 1000) { nilaiPenarikan = parseFloat(row[c]); break; }
+                }
+                if (rowText.includes("Jk. Waktu") || rowText.includes("Tenor")) {
+                    for (var c = 0; c < row.length; c++) if (row[c] && !isNaN(parseInt(row[c])) && parseInt(row[c]) > 0 && parseInt(row[c]) < 1000) { tenor = parseInt(row[c]); break; }
+                }
                 if (rowText.includes("Realisasi")) {
                     for (var c = 0; c < row.length; c++) {
                         if (row[c]) {
@@ -451,7 +481,8 @@ function prosesUploadKartu() {
 
             var objJadwalArray = [], totalPokokJadwal = 0;
             for (var k = 8; k < excelData.length; k++) {
-                var rowAngsuran = excelData[k]; if (!rowAngsuran || rowAngsuran.length < 4) continue;
+                var rowAngsuran = excelData[k];
+                if (!rowAngsuran || rowAngsuran.length < 4) continue;
                 var colAngsuran = -1;
                 if (!isNaN(parseInt(rowAngsuran[0])) && parseInt(rowAngsuran[0]) > 0) colAngsuran = 0;
                 else if (!isNaN(parseInt(rowAngsuran[1])) && parseInt(rowAngsuran[1]) > 0) colAngsuran = 1;
@@ -462,27 +493,43 @@ function prosesUploadKartu() {
                 else if (cellDate) { try { cellDate = new Date(cellDate).toISOString().split('T')[0]; } catch (e) { } }
 
                 var pokokBulanIni = parseFloat(rowAngsuran[colAngsuran + 3]) || 0;
+
                 var statusExcel = rowAngsuran[colAngsuran + 6] ? rowAngsuran[colAngsuran + 6].toString().trim() : "Belum";
-                if (statusExcel.toLowerCase().includes("lunas") || statusExcel.toLowerCase().includes("sudah")) { statusExcel = "Lunas"; } else { statusExcel = "Belum"; }
+                if (statusExcel.toLowerCase().includes("lunas") || statusExcel.toLowerCase().includes("sudah")) {
+                    statusExcel = "Lunas";
+                } else {
+                    statusExcel = "Belum";
+                }
 
                 objJadwalArray.push({
-                    id_jadwal: idKontrakGen + "-A" + parseInt(rowAngsuran[colAngsuran]), id_kontrak: idKontrakGen,
-                    angsuran_ke: parseInt(rowAngsuran[colAngsuran]), tgl_jatuh_tempo: cellDate || "-",
-                    saldo_pokok_awal: parseFloat(rowAngsuran[colAngsuran + 2]) || 0, angsuran_pokok: pokokBulanIni,
-                    angsuran_bunga: parseFloat(rowAngsuran[colAngsuran + 4]) || 0, status_bayar: statusExcel
+                    id_jadwal: idKontrakGen + "-A" + parseInt(rowAngsuran[colAngsuran]),
+                    id_kontrak: idKontrakGen,
+                    angsuran_ke: parseInt(rowAngsuran[colAngsuran]),
+                    tgl_jatuh_tempo: cellDate || "-",
+                    saldo_pokok_awal: parseFloat(rowAngsuran[colAngsuran + 2]) || 0,
+                    angsuran_pokok: pokokBulanIni,
+                    angsuran_bunga: parseFloat(rowAngsuran[colAngsuran + 4]) || 0,
+                    status_bayar: statusExcel
                 });
                 totalPokokJadwal += pokokBulanIni;
             }
 
             if (nilaiPenarikan === 0 && totalPokokJadwal > 0) nilaiPenarikan = Math.round(totalPokokJadwal);
+
             dbPenarikan.push({ id_kontrak: idKontrakGen, id_fasilitas: selectedFasilitas, nama_customer: namaCustomer, nilai_penarikan: nilaiPenarikan, tgl_realisasi: tglRealisasi, tenor: tenor, bunga_efektif: bungaEffResult, status: "Aktif", link_bukti: fileInput.files[0].name });
             dbJadwalAngsuran = dbJadwalAngsuran.concat(objJadwalArray);
 
-            simpanKeLocalStorage(); Swal.fire('Berhasil!', 'Data Penarikan diekstrak.', 'success');
-            fileInput.value = ""; renderData(); triggerFilterUpdate();
+            simpanKeLocalStorage();
+            Swal.fire('Berhasil!', 'Data Penarikan dengan ID: ' + idKontrakGen + ' berhasil diekstrak.', 'success');
+
+            fileInput.value = "";
+            if (elemIdManual) elemIdManual.value = ""; // Reset kolom input manual setelah berhasil
+
+            renderData(); triggerFilterUpdate();
         } catch (err) { Swal.fire('Error', 'Gagal membaca Excel: ' + err.message, 'error'); }
     };
     reader.readAsArrayBuffer(fileInput.files[0]);
+
 }
 
 document.addEventListener("DOMContentLoaded", function () { renderData(); triggerFilterUpdate(); });
