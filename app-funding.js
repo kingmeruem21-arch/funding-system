@@ -270,7 +270,62 @@ function bukaModalPelunasan() {
     document.getElementById('pelIdKontrak').innerHTML = '<option value="">-- Pilih Fasilitas Terlebih Dahulu --</option>';
     modalPelunasan.show();
 }
+// --- FITUR BARU: NOMINAL OTOMATIS BERDASARKAN JADWAL ---
 
+// 1. Tampilkan/Sembunyikan dropdown "Angsuran Ke" berdasarkan jenis pelunasan
+// --- FITUR BARU: NOMINAL OTOMATIS BERDASARKAN JADWAL ---
+
+// 1. Tampilkan/Sembunyikan dropdown "Angsuran Ke"
+function toggleAngsuranKe() {
+    var jenis = document.getElementById('pelJenis').value; // Disesuaikan
+    var divAngsuran = document.getElementById('divPilihAngsuran');
+    if (jenis === "Angsuran Bulanan") { // Disesuaikan
+        divAngsuran.style.display = "block";
+    } else {
+        divAngsuran.style.display = "none";
+        document.getElementById('pilihAngsuranKe').value = "";
+    }
+}
+
+// 2. Isi opsi "Angsuran Ke" saat Kontrak dipilih
+function muatOpsiAngsuran() {
+    var idKontrak = document.getElementById('pelKontrak').value; // Asumsi ID kontrak Anda adalah pelKontrak
+    var selectAngsuran = document.getElementById('pilihAngsuranKe');
+    selectAngsuran.innerHTML = '<option value="">-- Pilih Jadwal Angsuran --</option>';
+
+    if (!idKontrak) return;
+
+    var jadwalTerkait = dbJadwalAngsuran.filter(j => j.id_kontrak === idKontrak && j.status_bayar === "Belum");
+    jadwalTerkait.sort((a, b) => a.angsuran_ke - b.angsuran_ke);
+
+    if (jadwalTerkait.length === 0) {
+        selectAngsuran.innerHTML = '<option value="">-- Semua Angsuran Telah Lunas --</option>';
+        return;
+    }
+
+    jadwalTerkait.forEach(j => {
+        var opt = document.createElement('option');
+        opt.value = j.id_jadwal;
+        opt.text = `Angsuran Ke-${j.angsuran_ke} (${j.tgl_jatuh_tempo}) - Pokok: ${j.angsuran_pokok.toLocaleString('id-ID')}`;
+        selectAngsuran.appendChild(opt);
+    });
+}
+
+// 3. Isi form Pokok & Bunga
+function isiNominalOtomatis() {
+    var idJadwal = document.getElementById('pilihAngsuranKe').value;
+    if (!idJadwal) {
+        document.getElementById('pelPokok').value = 0; // Disesuaikan
+        document.getElementById('pelBunga').value = 0; // Disesuaikan
+        return;
+    }
+
+    var jadwalData = dbJadwalAngsuran.find(j => j.id_jadwal === idJadwal);
+    if (jadwalData) {
+        document.getElementById('pelPokok').value = Math.round(jadwalData.angsuran_pokok).toLocaleString('id-ID'); // Disesuaikan dengan format rupiah
+        document.getElementById('pelBunga').value = Math.round(jadwalData.angsuran_bunga).toLocaleString('id-ID'); // Disesuaikan dengan format rupiah
+    }
+}
 function simpanPelunasan() {
     var idFasilitas = document.getElementById('pelIdFasilitas').value;
     var idKontrak = document.getElementById('pelIdKontrak').value;
