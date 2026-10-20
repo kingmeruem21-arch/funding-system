@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Pendanaan (Funding)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body style="zoom: 1;">
+    <div class="d-flex" id="wrapperMain">
+        <!-- Sidebar -->
+        <div id="sidebar-wrapper" class="text-white p-3">
+            <h5 class="fw-bold mb-4 border-bottom pb-2">🏦 Sistem Pendanaan</h5>
+            <ul class="nav flex-column gap-2 mb-4">
+                <li class="nav-item"><a class="nav-link text-white rounded active" id="nav-dashboard"
+                        onclick="gantiHalaman('dashboard')">🏠 Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link text-white rounded" id="nav-penarikan"
+                        onclick="gantiHalaman('penarikan')">📄 Data Penarikan</a></li>
+                <li class="nav-item"><a class="nav-link text-white rounded" id="nav-jadwal"
+                        onclick="gantiHalaman('jadwal')">📅 Jadwal Angsuran</a></li>
+                <li class="nav-item"><a class="nav-link text-white rounded" id="nav-pelunasan"
+                        onclick="gantiHalaman('pelunasan')">💰 Input Pelunasan</a></li>
+                <li class="nav-item"><a class="nav-link text-white rounded" id="nav-laporan"
+                        onclick="gantiHalaman('laporan')">📊 Laporan Periode</a></li>
+            </ul>
+
+            <div class="p-3 rounded border border-secondary mt-5" style="background-color: #051326;">
+                <h6 class="fw-bold text-warning mb-3 border-bottom border-secondary pb-2" style="font-size: 0.85rem;">⚙️
+                    Filter Rentang Periode</h6>
+                <label class="form-label text-white-50 fw-bold small mb-1">Dari Tanggal:</label>
+                <input type="date" id="filterTglMulai" class="form-control form-control-sm mb-2"
+                    onchange="triggerFilterUpdate()">
+                <label class="form-label text-white-50 fw-bold small mb-1">Sampai Tanggal (Cut-Off):</label>
+                <input type="date" id="filterTglSelesai" class="form-control form-control-sm mb-3"
+                    onchange="triggerFilterUpdate()">
+                <button class="btn btn-outline-light btn-sm w-100 py-1 fw-bold" style="font-size: 0.75rem;"
+                    onclick="resetFilterPeriode()">🔄 Reset Filter</button>
+            </div>
+        </div>
+
+        <div id="page-content-wrapper">
+            <!-- HALAMAN DASHBOARD -->
+            <div id="page-dashboard" class="page-section active">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold mb-0">Dashboard Kewajiban (Funding)</h4>
+                    <button class="btn btn-outline-primary btn-sm fw-bold" onclick="bukaModalMasterFasilitas()">⚙️
+                        Kelola Master Fasilitas</button>
+                </div>
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card card-dash bg-primary text-white p-3 h-100 shadow-sm">
+                            <h6 class="small fw-bold mb-2">Total Outstanding (OS)</h6>
+                            <h4 id="dashTotalOS" class="fw-bold mb-0">Rp 0</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card card-dash text-white p-3 h-100 shadow-sm" style="background-color: #0dcaf0;">
+                            <h6 class="small fw-bold mb-2">Total Penarikan</h6>
+                            <h4 id="dashTotalPenarikan" class="fw-bold mb-0">Rp 0</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card card-dash bg-success text-white p-3 h-100 shadow-sm">
+                            <h6 class="small fw-bold mb-2">Total Pelunasan Pokok</h6>
+                            <h4 id="dashTotalPembayaran" class="fw-bold mb-0">Rp 0</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card card-dash bg-secondary text-white p-3 h-100 shadow-sm">
+                            <h6 class="small fw-bold mb-2">Sisa Kelonggaran Tarik</h6>
+                            <h4 id="dashSisaPlafon" class="fw-bold mb-0">Rp 0</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+                    <h5 class="fw-bold mb-0">📊 Rekapitulasi Fasilitas Pendanaan Kreditur</h5>
+                    <button class="btn btn-success btn-sm fw-bold" onclick="exportExcelDashboard()">📥 Download
+                        Excel</button>
+                </div>
+                <div class="table-responsive bg-white p-0 rounded shadow-sm border mb-5">
+                    <table class="table table-bordered table-hover table-sm mb-0" id="tabelDashboardExport"
+                        style="font-size: 0.85em;">
+                        <thead class="table-dark text-center align-middle" style="background-color: #0c2340;">
+                            <tr>
+                                <th>Kreditur</th>
+                                <th>Jenis Fasilitas</th>
+                                <th>Nama Fasilitas</th>
+                                <th>Tujuan Fasilitas</th>
+                                <th>Sifat</th>
+                                <th>Rate</th>
+                                <th>Limit Schedule</th>
+                                <th>Total Baki Debet (OS)</th>
+                                <th>Kelonggaran Tarik</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tBodyRekapFasilitas"></tbody>
+                        <tfoot class="table-light fw-bold" id="tFootRekapFasilitas"></tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- MODAL KELOLA MASTER FASILITAS -->
+            <div class="modal fade" id="modalMasterFasilitas" tabindex="-1">
+                <div class="modal-dialog modal-xl modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-dark text-white">
+                            <h5 class="modal-title fw-bold">Kelola Master Fasilitas Bank</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="formMasterFasilitas" onsubmit="simpanMasterFasilitas(event)"
+                                class="bg-light p-3 rounded mb-4 border">
+                                <h6 class="fw-bold text-primary mb-3" id="modalFormTitle">➕ Tambah Master Fasilitas Baru
+                                </h6>
+                                <input type="hidden" id="mfIsEdit" value="false">
+                                <div class="row mb-2">
+                                    <div class="col-4"><label class="form-label mb-0 fw-bold">ID Fasilitas
+                                            (Kode)</label><input type="text" class="form-control form-control-sm"
+                                            id="mfId" required></div>
+                                    <div class="col-4"><label class="form-label mb-0 fw-bold">Nama Bank</label><input
+                                            type="text" class="form-control form-control-sm" id="mfKreditur" required>
+                                    </div>
+                                    <div class="col-4"><label class="form-label mb-0 fw-bold">Interest
+                                            Rate</label><input type="text" class="form-control form-control-sm"
+                                            id="mfRate"></div>
+                                </div>
+                                <div class="row mb-2">
+                                    <div class="col-6"><label class="form-label mb-0 fw-bold">Jenis
+                                            Fasilitas</label><input type="text" class="form-control form-control-sm"
+                                            id="mfJenis"></div>
+                                    <div class="col-6"><label class="form-label mb-0 fw-bold">Nama
+                                            Fasilitas</label><input type="text" class="form-control form-control-sm"
+                                            id="mfNama"></div>
+                                </div>
+                                <div class="row mb-2">
+                                    <div class="col-6"><label class="form-label mb-0 fw-bold text-success">Tujuan
+                                            Fasilitas</label><input type="text"
+                                            class="form-control form-control-sm border-success" id="mfTujuan"></div>
+                                    <div class="col-6">
+                                        <label class="form-label mb-0 fw-bold">Sifat Fasilitas</label>
+                                        <select class="form-select form-select-sm" id="mfSifat">
+                                            <option value="Revolving">Revolving</option>
+                                            <option value="Non Revolving" selected>Non Revolving</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-6"><label class="form-label mb-0 fw-bold">Limit Schedule
+                                            (Rp)</label><input type="text" class="form-control form-control-sm"
+                                            id="mfLimit" onkeyup="formatInputRupiah(this)" required></div>
+                                    <div class="col-6"><label class="form-label mb-0 fw-bold text-primary">Baki Debet
+                                            Awal (Saldo Awal)</label><input type="text"
+                                            class="form-control form-control-sm border-primary" id="mfBakiDebetAwal"
+                                            onkeyup="formatInputRupiah(this)"></div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary btn-sm fw-bold flex-grow-1">💾 Simpan
+                                        Master Fasilitas</button>
+                                    <button type="button" class="btn btn-secondary btn-sm fw-bold"
+                                        onclick="resetFormMaster()">🔄 Reset</button>
+                                </div>
+                            </form>
+                            <div class="table-responsive bg-white rounded shadow-sm">
+                                <table class="table table-bordered table-sm align-middle" style="font-size: 0.85rem;">
+                                    <thead class="table-secondary">
+                                        <tr>
+                                            <th>ID Fasilitas</th>
+                                            <th>Kreditur</th>
+                                            <th>Jenis & Nama</th>
+                                            <th>Tujuan</th>
+                                            <th>Sifat</th>
+                                            <th>Rate</th>
+                                            <th>Limit Schedule</th>
+                                            <th>Baki Debet Awal</th>
+                                            <th class="text-center">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tBodyMasterFasilitas"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HALAMAN PENARIKAN -->
+            <div id="page-penarikan" class="page-section">
+                <h4 class="fw-bold mb-3">Buat Penarikan / Kontrak Baru</h4>
+                <div class="card p-4 shadow-sm border-0 mb-4">
+                    <h6 class="text-primary fw-bold mb-3">Upload "Kartu Piutang" dari Bank (Format Excel)</h6>
+                    <div class="mb-3" style="max-width: 400px;">
+                        <label class="form-label fw-bold small text-muted">Pilih Fasilitas / Kreditur Tujuan *</label>
+                        <select id="pilihFasilitasUpload" class="form-select form-select-sm" required></select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2"><input type="file" id="fileKartuPiutang" class="form-control"
+                                accept=".xls,.xlsx"></div>
+                        <div class="col-md-6"><button class="btn btn-primary fw-bold" onclick="prosesUploadKartu()">📑
+                                Ekstrak & Buat Jadwal Otomatis</button></div>
+                    </div>
+                </div>
+                <div class="table-responsive bg-white p-3 rounded shadow-sm">
+                    <table class="table table-bordered align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID Kontrak</th>
+                                <th>Fasilitas</th>
+                                <th>Nama Customer</th>
+                                <th>Tgl Realisasi</th>
+                                <th>Nilai Penarikan</th>
+                                <th>Tenor</th>
+                                <th>Status</th>
+                                <th class="text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tBodyPenarikan"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- HALAMAN JADWAL ANGSURAN -->
+            <div id="page-jadwal" class="page-section">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold mb-0">Jadwal Angsuran Keseluruhan</h4>
+                    <button class="btn btn-success btn-sm fw-bold" onclick="exportExcelJadwal()">📥 Download
+                        Jadwal</button>
+                </div>
+                <div class="table-responsive bg-white p-3 rounded shadow-sm">
+                    <table class="table table-bordered table-sm" id="tabelJadwalExport" style="font-size: 0.85rem;">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th>ID Kontrak</th>
+                                <th>Angsuran Ke</th>
+                                <th>Jatuh Tempo</th>
+                                <th>Saldo Pokok Awal</th>
+                                <th>Angsuran Pokok</th>
+                                <th>Angsuran Bunga</th>
+                                <th>Status Bayar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tBodyJadwal"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- HALAMAN PELUNASAN -->
+            <div id="page-pelunasan" class="page-section">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold mb-0">💰 Riwayat Pembayaran Pelunasan</h4>
+                    <button class="btn btn-success btn-sm fw-bold" onclick="bukaModalPelunasan()">➕ Input Pelunasan
+                        Baru</button>
+                </div>
+                <div class="table-responsive bg-white p-3 rounded shadow-sm mb-5">
+                    <table class="table table-bordered table-sm align-middle" style="font-size: 0.85rem;">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th>ID Pelunasan</th>
+                                <th>ID Fasilitas</th>
+                                <th>ID Kontrak</th>
+                                <th>Tanggal Bayar</th>
+                                <th>Jenis Pelunasan</th>
+                                <th class="text-end">Pokok Dibayar</th>
+                                <th class="text-end">Bunga Dibayar</th>
+                                <th class="text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tBodyPelunasanPage"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- MODAL FORM INPUT PELUNASAN -->
+            <div class="modal fade" id="modalInputPelunasan" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title fw-bold">Form Input Pelunasan</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">Pilih Fasilitas Tujuan Pembayaran *</label>
+                                <select id="pelIdFasilitas" class="form-select form-select-sm"
+                                    onchange="loadKontrakTerkait()"></select>
+                            </div>
+
+                            <!-- TAMBAHAN: PILIH KONTRAK / CUSTOMER -->
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-primary">Pilih Kontrak / Customer Terkait
+                                    *</label>
+                                <select id="pelIdKontrak" class="form-select form-select-sm border-primary">
+                                    <option value="">-- Pilih Fasilitas Terlebih Dahulu --</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">Tanggal Pelunasan Riil *</label>
+                                <input type="date" id="pelTglBayar" class="form-control form-control-sm">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">Jenis Pelunasan</label>
+                                <select id="pelJenis" class="form-select form-select-sm">
+                                    <option value="Angsuran Bulanan">Angsuran Bulanan (Sesuai Jadwal)</option>
+                                    <option value="Dipercepat">Pelunasan Dipercepat (Cut-off Semua Sisa)</option>
+                                </select>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label fw-bold small">Pokok Dibayar (Rp)</label>
+                                    <input type="text" id="pelPokok" class="form-control form-control-sm"
+                                        placeholder="0" onkeyup="formatInputRupiah(this)">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label fw-bold small">Bunga Dibayar (Rp)</label>
+                                    <input type="text" id="pelBunga" class="form-control form-control-sm"
+                                        placeholder="0" onkeyup="formatInputRupiah(this)">
+                                </div>
+                            </div>
+                            <button class="btn btn-success btn-sm fw-bold w-100 py-2" onclick="simpanPelunasan()">💾
+                                Simpan Pelunasan & Update Jadwal</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HALAMAN LAPORAN -->
+            <div id="page-laporan" class="page-section">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold mb-0">📊 Laporan & Monitoring Realisasi</h4>
+                </div>
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card bg-primary text-white p-3 shadow-sm">
+                            <h6 class="small fw-bold">Total Penarikan</h6>
+                            <h4 id="lapTotalPenarikan" class="fw-bold mb-0">Rp 0</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-success text-white p-3 shadow-sm">
+                            <h6 class="small fw-bold">Total Pokok Dibayar</h6>
+                            <h4 id="lapTotalPokokBayar" class="fw-bold mb-0">Rp 0</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-white p-3 shadow-sm" style="background-color: #0dcaf0;">
+                            <h6 class="small fw-bold">Total Bunga Dibayar</h6>
+                            <h4 id="lapTotalBungaBayar" class="fw-bold mb-0">Rp 0</h4>
+                        </div>
+                    </div>
+                </div>
+                <h5 class="fw-bold text-primary mt-4 mb-2">📄 Rincian Penarikan Kontrak Baru</h5>
+                <div class="table-responsive bg-white p-3 rounded shadow-sm mb-4">
+                    <table class="table table-bordered table-sm align-middle" style="font-size: 0.85rem;">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID Kontrak</th>
+                                <th>Fasilitas</th>
+                                <th>Customer</th>
+                                <th>Tgl Realisasi</th>
+                                <th>Nilai Penarikan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tBodyLapPenarikan"></tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+                    <h5 class="fw-bold text-success mb-0">💰 Rincian Pembayaran / Pelunasan</h5>
+                    <button class="btn btn-success btn-sm fw-bold" onclick="exportExcelLaporan()">📥 Download
+                        Excel</button>
+                </div>
+                <div class="table-responsive bg-white p-3 rounded shadow-sm mb-5">
+                    <table class="table table-bordered table-sm align-middle" id="tabelLaporanPelunasanExport"
+                        style="font-size: 0.85rem;">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th>ID Pelunasan</th>
+                                <th>ID Fasilitas</th>
+                                <th>Tanggal Bayar</th>
+                                <th>Jenis</th>
+                                <th>Pokok Dibayar</th>
+                                <th>Bunga Dibayar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tBodyLapPelunasan"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="app-funding.js"></script>
+</body>
+
+</html>

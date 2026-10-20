@@ -1,0 +1,99 @@
+/* ==========================================================
+   STYLE UTAMA APLIKASI PENDANAAN (FUNDING)
+   ========================================================== */
+
+body {
+    background-color: #f4f6f9;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+#wrapperMain {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+    align-items: flex-start;
+}
+
+/* SIDEBAR TETAP DI KIRI DAN TIDAK BERGERAK SAAT SCROLL */
+#sidebar-wrapper {
+    width: 260px;
+    min-width: 260px;
+    max-width: 260px;
+    background: #0c2340;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+#sidebar-wrapper .nav-link {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#sidebar-wrapper .nav-link:hover,
+#sidebar-wrapper .nav-link.active {
+    background: #1d4ed8;
+    color: #fff !important;
+}
+
+#page-content-wrapper {
+    flex-grow: 1;
+    padding: 30px;
+    overflow-x: hidden;
+    min-width: 0;
+}
+
+.page-section {
+    display: none;
+}
+
+.page-section.active {
+    display: block;
+}
+
+.card-dash {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+/* ==========================================================
+   PENGATURAN STICKY / FREEZE PANE TABEL
+   ========================================================== */
+
+.table-responsive {
+    max-height: 65vh;
+    overflow-y: auto;
+    overflow-x: auto;
+    position: relative;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: white;
+}
+
+.table {
+    width: 100%;
+    margin-bottom: 0;
+    border-collapse: collapse;
+}
+
+.table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: #0c2340 !important;
+    color: #ffffff !important;
+    text-align: center;
+    vertical-align: middle;
+    box-shadow: inset 0 -2px 0 #051326;
+}
+
+.table tbody td {
+    vertical-align: middle;
+}
