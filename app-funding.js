@@ -280,7 +280,7 @@ function bukaModalPelunasan() {
     var selectAngsuran = document.getElementById('pilihAngsuranKe');
     if (selectAngsuran) {
         selectAngsuran.innerHTML = '<option value="">-- Pilih Kontrak Terlebih Dahulu --</option>';
-        document.getElementById('divPilihAngsuran').style.display = 'none';
+        document.getElementById('divPilihAngsuran').style.display = 'block';
         document.getElementById('pelJenis').value = "Angsuran Bulanan";
     }
 
