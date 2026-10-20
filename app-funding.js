@@ -1,6 +1,6 @@
 /* =======================================================
    app-funding.js - Logika Sistem Pendanaan (Funding)
-   Versi: Dengan Otomatisasi Status Lunas Jadwal Angsuran
+   Versi: Final dengan Validasi Kontrak Ganda & Status Menunggak
    ======================================================= */
 
 var WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxlYe6zzOIho-5b6ri-AFmwz3F15LhE8d6PUyECwj5Qmb44L9cNIhhS3V4ut2Svueif/exec";
@@ -46,7 +46,11 @@ function gantiHalaman(pageId) {
     if (pageId === 'laporan') renderLaporanPeriode();
 }
 
-function triggerFilterUpdate() { renderDashboard(); renderLaporanPeriode(); }
+function triggerFilterUpdate() {
+    renderDashboard();
+    renderLaporanPeriode();
+    renderData();
+}
 
 function resetFilterPeriode() {
     document.getElementById('filterTglMulai').value = '';
@@ -186,23 +190,59 @@ function renderData() {
         dbMasterFasilitas.forEach(m => selectFasUpload.innerHTML += `<option value="${m.id_fasilitas}">${m.kreditur} - ${m.nama_fasilitas}</option>`);
     }
 
-    // TABEL JADWAL ANGSURAN
+    // TABEL JADWAL ANGSURAN & FILTER PERIODE DENGAN INDIKATOR MENUNGGAK
     var tbodyJadwal = document.getElementById('tBodyJadwal');
     if (tbodyJadwal) {
         tbodyJadwal.innerHTML = "";
         let today = new Date().toISOString().split('T')[0];
 
-        dbJadwalAngsuran.forEach(j => {
+        var tglMulai = document.getElementById('filterTglMulai').value;
+        var tglSelesai = document.getElementById('filterTglSelesai').value;
+
+        let sumPokokJadwal = 0;
+        let sumBungaJadwal = 0;
+
+        let filteredJadwal = dbJadwalAngsuran.filter(j => {
+            if (j.tgl_jatuh_tempo === "-") return false;
+            if (!tglMulai && !tglSelesai) return true;
+            if (tglMulai && !tglSelesai) return j.tgl_jatuh_tempo >= tglMulai;
+            if (!tglMulai && tglSelesai) return j.tgl_jatuh_tempo <= tglSelesai;
+            return j.tgl_jatuh_tempo >= tglMulai && j.tgl_jatuh_tempo <= tglSelesai;
+        });
+
+        filteredJadwal.forEach(j => {
             let currentStatus = j.status_bayar;
-            if (currentStatus === "Belum" && j.tgl_jatuh_tempo !== "-" && j.tgl_jatuh_tempo < today) currentStatus = "Menunggak";
+            // Deteksi otomatis status menunggak jika belum lunas dan lewat tanggal hari ini
+            if (currentStatus === "Belum" && j.tgl_jatuh_tempo < today) {
+                currentStatus = "Menunggak (Lewat Tempo)";
+            }
 
             let badgeColor = "bg-warning text-dark";
             if (currentStatus === "Lunas") badgeColor = "bg-success";
-            else if (currentStatus === "Menunggak") badgeColor = "bg-danger";
+            else if (currentStatus.includes("Menunggak")) badgeColor = "bg-danger text-white";
             else if (currentStatus.includes("Void")) badgeColor = "bg-secondary";
 
-            tbodyJadwal.innerHTML += `<tr><td>${j.id_kontrak}</td><td>${j.angsuran_ke}</td><td>${j.tgl_jatuh_tempo}</td><td>${formatRp(j.saldo_pokok_awal)}</td><td>${formatRp(j.angsuran_pokok)}</td><td>${formatRp(j.angsuran_bunga)}</td><td><span class="badge ${badgeColor}">${currentStatus}</span></td></tr>`;
+            sumPokokJadwal += (j.angsuran_pokok || 0);
+            sumBungaJadwal += (j.angsuran_bunga || 0);
+
+            tbodyJadwal.innerHTML += `<tr>
+                <td><b>${j.id_kontrak}</b></td>
+                <td class="text-center">${j.angsuran_ke}</td>
+                <td>${j.tgl_jatuh_tempo}</td>
+                <td class="text-end">${formatRp(j.saldo_pokok_awal)}</td>
+                <td class="text-end">${formatRp(j.angsuran_pokok)}</td>
+                <td class="text-end">${formatRp(j.angsuran_bunga)}</td>
+                <td class="text-center"><span class="badge ${badgeColor}">${currentStatus}</span></td>
+            </tr>`;
         });
+
+        var elPokok = document.getElementById('infoTotalPokokJadwal');
+        var elBunga = document.getElementById('infoTotalBungaJadwal');
+        var elTotal = document.getElementById('infoTotalTagihanJadwal');
+
+        if (elPokok) elPokok.innerText = formatRp(sumPokokJadwal);
+        if (elBunga) elBunga.innerText = formatRp(sumBungaJadwal);
+        if (elTotal) elTotal.innerText = formatRp(sumPokokJadwal + sumBungaJadwal);
     }
 
     // TABEL PENARIKAN
@@ -242,7 +282,6 @@ function renderData() {
 // ==========================================
 function loadKontrakTerkait() {
     var idFasilitasTerpilih = document.getElementById('pelIdFasilitas').value;
-    // PERBAIKAN: Ubah pelIdKontrak menjadi pelKontrak
     var dropdownKontrak = document.getElementById('pelKontrak');
 
     dropdownKontrak.innerHTML = '<option value="">-- Pilih Kontrak / Customer (Wajib) --</option>';
@@ -259,24 +298,20 @@ function loadKontrakTerkait() {
         });
     }
 
-    // Panggil ini agar dropdown angsuran ikut ter-refresh saat daftar kontrak diisi
-    muatOpsiAngsuran();
+    muatOspiAngsuranOtomatis();
 }
 
 // ==========================================
 // MODAL PELUNASAN & SIMPAN
 // ==========================================
 var modalPelunasan;
-var modalPelunasan;
 function bukaModalPelunasan() {
     if (!modalPelunasan) modalPelunasan = new bootstrap.Modal(document.getElementById('modalInputPelunasan'));
     document.getElementById('pelPokok').value = '';
     document.getElementById('pelBunga').value = '';
 
-    // PERBAIKAN: Ubah pelIdKontrak menjadi pelKontrak
     document.getElementById('pelKontrak').innerHTML = '<option value="">-- Pilih Fasilitas Terlebih Dahulu --</option>';
 
-    // TAMBAHAN: Reset dropdown angsuran agar bersih saat form baru dibuka
     var selectAngsuran = document.getElementById('pilihAngsuranKe');
     if (selectAngsuran) {
         selectAngsuran.innerHTML = '<option value="">-- Pilih Kontrak Terlebih Dahulu --</option>';
@@ -286,16 +321,11 @@ function bukaModalPelunasan() {
 
     modalPelunasan.show();
 }
-// --- FITUR BARU: NOMINAL OTOMATIS BERDASARKAN JADWAL ---
 
-// 1. Tampilkan/Sembunyikan dropdown "Angsuran Ke" berdasarkan jenis pelunasan
-// --- FITUR BARU: NOMINAL OTOMATIS BERDASARKAN JADWAL ---
-
-// 1. Tampilkan/Sembunyikan dropdown "Angsuran Ke"
 function toggleAngsuranKe() {
-    var jenis = document.getElementById('pelJenis').value; // Disesuaikan
+    var jenis = document.getElementById('pelJenis').value;
     var divAngsuran = document.getElementById('divPilihAngsuran');
-    if (jenis === "Angsuran Bulanan") { // Disesuaikan
+    if (jenis === "Angsuran Bulanan") {
         divAngsuran.style.display = "block";
     } else {
         divAngsuran.style.display = "none";
@@ -303,19 +333,16 @@ function toggleAngsuranKe() {
     }
 }
 
-// 2. Isi opsi "Angsuran Ke" saat Kontrak dipilih
-// 2. Isi opsi "Angsuran Ke" saat Kontrak dipilih
-function muatOpsiAngsuran() {
+function muatOspiAngsuranOtomatis() {
     var elemenKontrak = document.getElementById('pelKontrak');
     var selectAngsuran = document.getElementById('pilihAngsuranKe');
 
-    // Cegah error jika elemen tidak ditemukan
     if (!elemenKontrak || !selectAngsuran) return;
 
     selectAngsuran.innerHTML = '<option value="">-- Pilih Jadwal Angsuran --</option>';
 
     var idKontrak = elemenKontrak.value;
-    if (!idKontrak) return; // Langsung berhenti jika kontrak belum ada nilainya
+    if (!idKontrak) return;
 
     var jadwalTerkait = dbJadwalAngsuran.filter(j => j.id_kontrak === idKontrak && j.status_bayar === "Belum");
     jadwalTerkait.sort((a, b) => a.angsuran_ke - b.angsuran_ke);
@@ -333,31 +360,26 @@ function muatOpsiAngsuran() {
     });
 }
 
-// 3. Isi form Pokok & Bunga
 function isiNominalOtomatis() {
     var idJadwal = document.getElementById('pilihAngsuranKe').value;
     if (!idJadwal) {
-        document.getElementById('pelPokok').value = 0; // Disesuaikan
-        document.getElementById('pelBunga').value = 0; // Disesuaikan
+        document.getElementById('pelPokok').value = 0;
+        document.getElementById('pelBunga').value = 0;
         return;
     }
 
     var jadwalData = dbJadwalAngsuran.find(j => j.id_jadwal === idJadwal);
     if (jadwalData) {
-        document.getElementById('pelPokok').value = Math.round(jadwalData.angsuran_pokok).toLocaleString('id-ID'); // Disesuaikan dengan format rupiah
-        document.getElementById('pelBunga').value = Math.round(jadwalData.angsuran_bunga).toLocaleString('id-ID'); // Disesuaikan dengan format rupiah
+        document.getElementById('pelPokok').value = Math.round(jadwalData.angsuran_pokok).toLocaleString('id-ID');
+        document.getElementById('pelBunga').value = Math.round(jadwalData.angsuran_bunga).toLocaleString('id-ID');
     }
 }
+
 function simpanPelunasan() {
     var idFasilitas = document.getElementById('pelIdFasilitas').value;
-
-    // PERBAIKAN: Ubah pelIdKontrak menjadi pelKontrak
     var idKontrak = document.getElementById('pelKontrak').value;
-
     var tglBayar = document.getElementById('pelTglBayar').value;
     var jenis = document.getElementById('pelJenis').value;
-
-    // ... sisanya biarkan sama persis seperti kode Anda ...
 
     var pokok = parseFloat(document.getElementById('pelPokok').value.replace(/\./g, '')) || 0;
     var bunga = parseFloat(document.getElementById('pelBunga').value.replace(/\./g, '')) || 0;
@@ -379,14 +401,23 @@ function simpanPelunasan() {
         return;
     }
 
-    // UPDATE STATUS JADWAL ANGSURAN OTOMATIS
+    var idJadwalYangDilunasi = "";
     if (jenis === "Angsuran Bulanan") {
-        // Cari jadwal angsuran pertama yang masih "Belum" atau "Menunggak" untuk kontrak ini
-        var jadwalDitemukan = dbJadwalAngsuran.find(j => j.id_kontrak === idKontrak && (j.status_bayar === "Belum" || j.status_bayar === "Menunggak"));
+        var selectAngsuran = document.getElementById('pilihAngsuranKe');
+        var idJadwalTerpilih = selectAngsuran ? selectAngsuran.value : null;
+
+        var jadwalDitemukan = null;
+        if (idJadwalTerpilih) {
+            jadwalDitemukan = dbJadwalAngsuran.find(j => j.id_jadwal === idJadwalTerpilih);
+        } else {
+            jadwalDitemukan = dbJadwalAngsuran.find(j => j.id_kontrak === idKontrak && (j.status_bayar === "Belum" || j.status_bayar === "Menunggak"));
+        }
+
         if (jadwalDitemukan) {
             jadwalDitemukan.status_bayar = "Lunas";
+            idJadwalYangDilunasi = jadwalDitemukan.id_jadwal;
         } else {
-            Swal.fire('Info', 'Tidak ada jadwal angsuran yang berstatus Belum/Menunggak untuk kontrak ini. Status pelunasan tercatat namun tidak ada jadwal yang diubah.', 'info');
+            Swal.fire('Info', 'Tidak ada jadwal angsuran yang berstatus Belum/Menunggak untuk kontrak ini.', 'info');
         }
     } else if (jenis === "Dipercepat") {
         dbPenarikan.forEach(p => { if (p.id_kontrak === idKontrak) p.status = "Lunas Dipercepat"; });
@@ -395,7 +426,6 @@ function simpanPelunasan() {
         });
     }
 
-    // SIMPAN RIWAYAT PELUNASAN
     var objPelunasan = {
         id_pelunasan: "PLN-" + new Date().getTime(),
         id_fasilitas: idFasilitas,
@@ -403,7 +433,36 @@ function simpanPelunasan() {
         tgl_bayar: tglBayar,
         jenis_pelunasan: jenis,
         pokok_dibayar: pokok,
-        bunga_dibayar: bunga
+        bunga_dibayar: bunga,
+        id_jadwal_terkait: idJadwalYangDilunasi
+    };
+    // --- MEMBUAT ID PELUNASAN OTOMATIS BERBASIS POLA ---
+    // --- MEMBUAT ID PELUNASAN OTOMATIS BERBASIS POLA (PLNSN) ---
+    let digitKontrak = idKontrak.length >= 4 ? idKontrak.slice(-4) : idKontrak;
+
+    let namaCustClean = "CUST";
+    let dataKontrak = dbPenarikan.find(p => p.id_kontrak === idKontrak);
+    if (dataKontrak && dataKontrak.nama_customer) {
+        namaCustClean = dataKontrak.nama_customer.split(" ")[0].replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 5);
+    }
+
+    let singkatanBank = "BANK";
+    let dataFasilitas = dbMasterFasilitas.find(m => m.id_fasilitas === idFasilitas);
+    if (dataFasilitas && dataFasilitas.kreditur) {
+        singkatanBank = dataFasilitas.kreditur.split(" ")[0].toUpperCase().slice(0, 5);
+    }
+
+    var idPelunasanGen = `PLNSN-${digitKontrak}-${namaCustClean}-${singkatanBank}`;
+
+    var objPelunasan = {
+        id_pelunasan: idPelunasanGen, // Menggunakan awalan PLNSN
+        id_fasilitas: idFasilitas,
+        id_kontrak: idKontrak,
+        tgl_bayar: tglBayar,
+        jenis_pelunasan: jenis,
+        pokok_dibayar: pokok,
+        bunga_dibayar: bunga,
+        id_jadwal_terkait: idJadwalYangDilunasi
     };
     dbPelunasan.push(objPelunasan);
 
@@ -415,17 +474,41 @@ function simpanPelunasan() {
     triggerFilterUpdate();
 }
 
+// ==========================================
+// HAPUS PELUNASAN DENGAN DETAIL KONFIRMASI
+// ==========================================
 function hapusPelunasan(idPelunasan) {
+    var dataPelunasan = dbPelunasan.find(p => p.id_pelunasan === idPelunasan);
+    if (!dataPelunasan) return;
+
     Swal.fire({
-        title: 'Hapus Transaksi Pelunasan?',
-        text: "Data pembayaran ini akan dihapus. Perhatian: Status Jadwal Angsuran yang sebelumnya 'Lunas' harus Anda ubah manual jika ingin dikembalikan.",
+        title: 'Konfirmasi Hapus Pelunasan',
+        html: `Apakah Anda yakin ingin menghapus data pelunasan ini?<br><br>
+               <b>ID Pelunasan:</b> ${dataPelunasan.id_pelunasan}<br>
+               <b>ID Kontrak:</b> ${dataPelunasan.id_kontrak || '-'}<br>
+               <b>Tanggal Bayar:</b> ${dataPelunasan.tgl_bayar}<br>
+               <b>Pokok:</b> ${formatRp(dataPelunasan.pokok_dibayar)}<br><br>
+               <span class="text-danger small">Perhatian: Status jadwal angsuran terkait akan otomatis dikembalikan menjadi 'Belum' lunas.</span>`,
         icon: 'warning',
-        showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus!'
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Ya, Hapus Data!',
+        cancelButtonText: 'Batal'
     }).then((result) => {
         if (result.isConfirmed) {
+            if (dataPelunasan.id_jadwal_terkait) {
+                var jadwalTerkait = dbJadwalAngsuran.find(j => j.id_jadwal === dataPelunasan.id_jadwal_terkait);
+                if (jadwalTerkait) jadwalTerkait.status_bayar = "Belum";
+            }
+
             dbPelunasan = dbPelunasan.filter(p => p.id_pelunasan !== idPelunasan);
-            simpanKeLocalStorage(); renderData(); triggerFilterUpdate();
-            Swal.fire('Terhapus!', 'Data pelunasan berhasil dihapus.', 'success');
+
+            simpanKeLocalStorage();
+            renderData();
+            triggerFilterUpdate();
+
+            Swal.fire('Terhapus!', 'Data pelunasan berhasil dibatalkan dan status jadwal dikembalikan.', 'success');
         }
     });
 }
@@ -489,11 +572,36 @@ function renderTabelMasterFasilitas() {
 }
 
 // ==========================================
-// UPLOAD KARTU PIUTANG
+// UPLOAD KARTU PIUTANG DENGAN VALIDASI KONTRAK GANDA (POIN 2)
 // ==========================================
 function hapusPenarikan(idKontrak) {
-    Swal.fire({ title: 'Hapus Data Kontrak?', text: "Kontrak & jadwal angsuran akan dihapus!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus!' }).then((result) => {
-        if (result.isConfirmed) { dbPenarikan = dbPenarikan.filter(p => p.id_kontrak !== idKontrak); dbJadwalAngsuran = dbJadwalAngsuran.filter(j => j.id_kontrak !== idKontrak); simpanKeLocalStorage(); renderData(); triggerFilterUpdate(); Swal.fire('Terhapus!', 'Data kontrak dihapus.', 'success'); }
+    var dataPenarikan = dbPenarikan.find(p => p.id_kontrak === idKontrak);
+    if (!dataPenarikan) return;
+
+    Swal.fire({
+        title: 'Konfirmasi Hapus Kontrak / Penarikan',
+        html: `Apakah Anda yakin ingin menghapus kontrak ini?<br><br>
+               <b>ID Kontrak:</b> ${dataPenarikan.id_kontrak}<br>
+               <b>Customer:</b> ${dataPenarikan.nama_customer}<br>
+               <b>Nilai Penarikan:</b> ${formatRp(dataPenarikan.nilai_penarikan)}<br><br>
+               <span class="text-danger small">Peringatan: Seluruh Jadwal Angsuran yang terikat dengan kontrak ini juga akan ikut terhapus permanen!</span>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Ya, Hapus Kontrak!',
+        cancelButtonText: 'Batal'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            dbPenarikan = dbPenarikan.filter(p => p.id_kontrak !== idKontrak);
+            dbJadwalAngsuran = dbJadwalAngsuran.filter(j => j.id_kontrak !== idKontrak);
+
+            simpanKeLocalStorage();
+            renderData();
+            triggerFilterUpdate();
+
+            Swal.fire('Terhapus!', 'Data kontrak dan seluruh jadwal angsurannya berhasil dihapus.', 'success');
+        }
     });
 }
 
@@ -501,7 +609,6 @@ function prosesUploadKartu() {
     var fileInput = document.getElementById('fileKartuPiutang');
     var selectedFasilitas = document.getElementById('pilihFasilitasUpload').value;
 
-    // 1. Membaca Input ID Kontrak Manual dari HTML
     var elemIdManual = document.getElementById('idKontrakManual');
     var idKontrakManual = elemIdManual ? elemIdManual.value.trim() : "";
 
@@ -517,7 +624,6 @@ function prosesUploadKartu() {
             var excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
             var namaCustomer = "Tidak Diketahui";
-            // 2. Prioritaskan ID Manual. Jika kosong, buat ID otomatis.
             var idKontrakGen = idKontrakManual ? idKontrakManual : "KONTRAK-" + Math.floor(1000 + Math.random() * 9000);
             var nilaiPenarikan = 0, tenor = 0, bungaEffResult = "7.00%", tglRealisasi = new Date().toISOString().split('T')[0];
 
@@ -526,18 +632,14 @@ function prosesUploadKartu() {
                 for (var c = 0; c < row.length; c++) {
                     let cellStr = row[c] ? row[c].toString().trim() : "";
                     if (cellStr.length > 3) {
-                        // Cek apakah pakai format petik tunggal (Budi 'KONTRAK-01)
                         if (cellStr.includes("'")) {
                             let parts = cellStr.split("'");
                             namaCustomer = parts[0].replace(/nama\s*:/i, "").trim();
-                            // Timpa ID otomatis dari Excel HANYA JIKA kolom manual kosong
                             if (!idKontrakManual && parts.length > 1) idKontrakGen = parts[1].trim();
                         }
-                        // Cek apakah pakai format "Nama :" biasa
                         else if (cellStr.toLowerCase().includes("nama :")) {
                             namaCustomer = cellStr.replace(/nama\s*:/i, "").trim() || (row[c + 1] ? row[c + 1].toString().trim() : "");
                         }
-                        // Cek file bank tanpa "Nama :" (ambil teks pertama yang cukup panjang sebagai nama)
                         else if (namaCustomer === "Tidak Diketahui" && !cellStr.includes("Pokok") && !cellStr.includes("Jatuh") && !cellStr.includes("Angsuran") && !cellStr.includes("Tenor")) {
                             namaCustomer = cellStr;
                         }
@@ -559,6 +661,13 @@ function prosesUploadKartu() {
                         }
                     }
                 }
+            }
+
+            // CEK VALIDASI KONTRAK GANDA (POIN 2)
+            var isKontrakSudahAda = dbPenarikan.some(p => p.id_kontrak === idKontrakGen);
+            if (isKontrakSudahAda) {
+                Swal.fire('Gagal Upload', `ID Kontrak "${idKontrakGen}" sudah terdaftar di sistem! Harap gunakan ID manual lain atau periksa kembali file Excel.`, 'error');
+                return;
             }
 
             var objJadwalArray = [], totalPokokJadwal = 0;
@@ -602,16 +711,15 @@ function prosesUploadKartu() {
             dbJadwalAngsuran = dbJadwalAngsuran.concat(objJadwalArray);
 
             simpanKeLocalStorage();
-            Swal.fire('Berhasil!', 'Data Penarikan dengan ID: ' + idKontrakGen + ' berhasil diekstrak.', 'success');
+            Swal.fire('Berhasil!', 'Data Penarikan dengan ID: ' + idKontrakGen + ' berhasil diekstrak dan disimpan.', 'success');
 
             fileInput.value = "";
-            if (elemIdManual) elemIdManual.value = ""; // Reset kolom input manual setelah berhasil
+            if (elemIdManual) elemIdManual.value = "";
 
             renderData(); triggerFilterUpdate();
         } catch (err) { Swal.fire('Error', 'Gagal membaca Excel: ' + err.message, 'error'); }
     };
     reader.readAsArrayBuffer(fileInput.files[0]);
-
 }
 
 document.addEventListener("DOMContentLoaded", function () { renderData(); triggerFilterUpdate(); });
