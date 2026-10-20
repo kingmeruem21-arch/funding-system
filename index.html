@@ -304,9 +304,10 @@
 
                             <!-- TAMBAHAN: PILIH KONTRAK / CUSTOMER -->
                             <div class="mb-3">
-                                <label class="form-label fw-bold small text-primary">Pilih Kontrak / Customer Terkait
-                                    *</label>
-                                <select id="pelIdKontrak" class="form-select form-select-sm border-primary">
+                                <label class="form-label fw-bold small">Pilih Kontrak / Customer Terkait *</label>
+                                <!-- PASTIKAN ANDA MENAMBAHKAN onchange DI BAWAH INI -->
+                                <select id="pelKontrak" class="form-select form-select-sm" onchange="muatOpsiAngsuran()"
+                                    required>
                                     <option value="">-- Pilih Fasilitas Terlebih Dahulu --</option>
                                 </select>
                             </div>
