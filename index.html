@@ -317,11 +317,26 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-bold small">Jenis Pelunasan</label>
-                                <select id="pelJenis" class="form-select form-select-sm">
+                                <!-- Tambahkan onchange="toggleAngsuranKe()" di sini -->
+                                <select id="pelJenis" class="form-select form-select-sm" onchange="toggleAngsuranKe()">
                                     <option value="Angsuran Bulanan">Angsuran Bulanan (Sesuai Jadwal)</option>
                                     <option value="Dipercepat">Pelunasan Dipercepat (Cut-off Semua Sisa)</option>
                                 </select>
                             </div>
+
+                            <!-- TAMBAHAN BARU: Dropdown Pilih Angsuran -->
+                            <div class="mb-3" id="divPilihAngsuran">
+                                <label class="form-label fw-bold small text-primary">Pilih Angsuran Ke-
+                                    (Opsional)</label>
+                                <!-- Tambahkan onchange="isiNominalOtomatis()" di sini -->
+                                <select id="pilihAngsuranKe" class="form-select form-select-sm border-primary"
+                                    onchange="isiNominalOtomatis()">
+                                    <option value="">-- Pilih Kontrak Terlebih Dahulu --</option>
+                                </select>
+                                <small class="text-muted" style="font-size: 0.70rem;">Pilih untuk mengisi nominal
+                                    otomatis sesuai jadwal.</small>
+                            </div>
+
                             <div class="row mb-3">
                                 <div class="col-6">
                                     <label class="form-label fw-bold small">Pokok Dibayar (Rp)</label>
