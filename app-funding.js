@@ -295,12 +295,18 @@ function toggleAngsuranKe() {
 }
 
 // 2. Isi opsi "Angsuran Ke" saat Kontrak dipilih
+// 2. Isi opsi "Angsuran Ke" saat Kontrak dipilih
 function muatOpsiAngsuran() {
-    var idKontrak = document.getElementById('pelKontrak').value; // Asumsi ID kontrak Anda adalah pelKontrak
+    var elemenKontrak = document.getElementById('pelKontrak');
     var selectAngsuran = document.getElementById('pilihAngsuranKe');
+
+    // Cegah error jika elemen tidak ditemukan
+    if (!elemenKontrak || !selectAngsuran) return;
+
     selectAngsuran.innerHTML = '<option value="">-- Pilih Jadwal Angsuran --</option>';
 
-    if (!idKontrak) return;
+    var idKontrak = elemenKontrak.value;
+    if (!idKontrak) return; // Langsung berhenti jika kontrak belum ada nilainya
 
     var jadwalTerkait = dbJadwalAngsuran.filter(j => j.id_kontrak === idKontrak && j.status_bayar === "Belum");
     jadwalTerkait.sort((a, b) => a.angsuran_ke - b.angsuran_ke);
