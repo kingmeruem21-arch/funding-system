@@ -257,6 +257,13 @@ function loadKontrakTerkait() {
             dropdownKontrak.innerHTML += `<option value="${k.id_kontrak}">${k.id_kontrak} - ${k.nama_customer}</option>`;
         });
     }
+    function loadKontrakTerkait() {
+        // ... (kode lama yang panjang dari fungsi ini) ...
+        // ... (kode yang memasukkan data ke pelKontrak) ...
+
+        // TAMBAHKAN 1 BARIS INI DI PALING BAWAH:
+        muatOpsiAngsuran();
+    }
 }
 
 // ==========================================
