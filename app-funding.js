@@ -242,7 +242,8 @@ function renderData() {
 // ==========================================
 function loadKontrakTerkait() {
     var idFasilitasTerpilih = document.getElementById('pelIdFasilitas').value;
-    var dropdownKontrak = document.getElementById('pelIdKontrak');
+    // PERBAIKAN: Ubah pelIdKontrak menjadi pelKontrak
+    var dropdownKontrak = document.getElementById('pelKontrak');
 
     dropdownKontrak.innerHTML = '<option value="">-- Pilih Kontrak / Customer (Wajib) --</option>';
 
@@ -257,24 +258,32 @@ function loadKontrakTerkait() {
             dropdownKontrak.innerHTML += `<option value="${k.id_kontrak}">${k.id_kontrak} - ${k.nama_customer}</option>`;
         });
     }
-    function loadKontrakTerkait() {
-        // ... (kode lama yang panjang dari fungsi ini) ...
-        // ... (kode yang memasukkan data ke pelKontrak) ...
 
-        // TAMBAHKAN 1 BARIS INI DI PALING BAWAH:
-        muatOpsiAngsuran();
-    }
+    // Panggil ini agar dropdown angsuran ikut ter-refresh saat daftar kontrak diisi
+    muatOpsiAngsuran();
 }
 
 // ==========================================
 // MODAL PELUNASAN & SIMPAN
 // ==========================================
 var modalPelunasan;
+var modalPelunasan;
 function bukaModalPelunasan() {
     if (!modalPelunasan) modalPelunasan = new bootstrap.Modal(document.getElementById('modalInputPelunasan'));
     document.getElementById('pelPokok').value = '';
     document.getElementById('pelBunga').value = '';
-    document.getElementById('pelIdKontrak').innerHTML = '<option value="">-- Pilih Fasilitas Terlebih Dahulu --</option>';
+
+    // PERBAIKAN: Ubah pelIdKontrak menjadi pelKontrak
+    document.getElementById('pelKontrak').innerHTML = '<option value="">-- Pilih Fasilitas Terlebih Dahulu --</option>';
+
+    // TAMBAHAN: Reset dropdown angsuran agar bersih saat form baru dibuka
+    var selectAngsuran = document.getElementById('pilihAngsuranKe');
+    if (selectAngsuran) {
+        selectAngsuran.innerHTML = '<option value="">-- Pilih Kontrak Terlebih Dahulu --</option>';
+        document.getElementById('divPilihAngsuran').style.display = 'none';
+        document.getElementById('pelJenis').value = "Angsuran Bulanan";
+    }
+
     modalPelunasan.show();
 }
 // --- FITUR BARU: NOMINAL OTOMATIS BERDASARKAN JADWAL ---
@@ -341,9 +350,14 @@ function isiNominalOtomatis() {
 }
 function simpanPelunasan() {
     var idFasilitas = document.getElementById('pelIdFasilitas').value;
-    var idKontrak = document.getElementById('pelIdKontrak').value;
+
+    // PERBAIKAN: Ubah pelIdKontrak menjadi pelKontrak
+    var idKontrak = document.getElementById('pelKontrak').value;
+
     var tglBayar = document.getElementById('pelTglBayar').value;
     var jenis = document.getElementById('pelJenis').value;
+
+    // ... sisanya biarkan sama persis seperti kode Anda ...
 
     var pokok = parseFloat(document.getElementById('pelPokok').value.replace(/\./g, '')) || 0;
     var bunga = parseFloat(document.getElementById('pelBunga').value.replace(/\./g, '')) || 0;
