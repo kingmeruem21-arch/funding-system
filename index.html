@@ -8,7 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2026">
 </head>
 
 <body style="zoom: 1;">
@@ -47,7 +47,7 @@
             <!-- HALAMAN DASHBOARD -->
             <div id="page-dashboard" class="page-section active">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4 class="fw-bold mb-0">Dashboard Kewajiban (Funding)</h4>
+                    <h4 class="fw-bold mb-0">Dashboard Pendanaan (Funding)</h4>
                     <button class="btn btn-outline-primary btn-sm fw-bold" onclick="bukaModalMasterFasilitas()">⚙️
                         Kelola Master Fasilitas</button>
                 </div>
@@ -243,7 +243,31 @@
                     <button class="btn btn-success btn-sm fw-bold" onclick="exportExcelJadwal()">📥 Download
                         Jadwal</button>
                 </div>
-                <div class="table-responsive bg-white p-3 rounded shadow-sm">
+
+                <!-- KOTAK RINGKASAN TAGIHAN BERDASARKAN PERIODE (BARU) -->
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="card bg-primary text-white p-3 shadow-sm border-0">
+                            <h6 class="small fw-bold mb-1">Total Pokok Jatuh Tempo</h6>
+                            <h5 id="infoTotalPokokJadwal" class="fw-bold mb-0">Rp 0</h5>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-white p-3 shadow-sm border-0" style="background-color: #0dcaf0;">
+                            <h6 class="small fw-bold mb-1">Total Bunga Jatuh Tempo</h6>
+                            <h5 id="infoTotalBungaJadwal" class="fw-bold mb-0">Rp 0</h5>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-success text-white p-3 shadow-sm border-0">
+                            <h6 class="small fw-bold mb-1">Total Tagihan (Pokok + Bunga)</h6>
+                            <h5 id="infoTotalTagihanJadwal" class="fw-bold mb-0">Rp 0</h5>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive bg-white p-3 rounded shadow-sm"
+                    style="max-height: 60vh; overflow-y: auto;">
                     <table class="table table-bordered table-sm" id="tabelJadwalExport" style="font-size: 0.85rem;">
                         <thead class="table-secondary">
                             <tr>
@@ -302,12 +326,10 @@
                                     onchange="loadKontrakTerkait()"></select>
                             </div>
 
-                            <!-- TAMBAHAN: PILIH KONTRAK / CUSTOMER -->
                             <div class="mb-3">
                                 <label class="form-label fw-bold small">Pilih Kontrak / Customer Terkait *</label>
-                                <!-- PASTIKAN ANDA MENAMBAHKAN onchange DI BAWAH INI -->
-                                <select id="pelKontrak" class="form-select form-select-sm" onchange="muatOpsiAngsuran()"
-                                    required>
+                                <select id="pelKontrak" class="form-select form-select-sm"
+                                    onchange="muatOspiAngsuranOtomatis()" required>
                                     <option value="">-- Pilih Fasilitas Terlebih Dahulu --</option>
                                 </select>
                             </div>
@@ -317,19 +339,26 @@
                                 <input type="date" id="pelTglBayar" class="form-control form-control-sm">
                             </div>
                             <div class="mb-3">
+                                <label class="form-label fw-bold small text-primary">ID Pelunasan Manual
+                                    (Opsional)</label>
+                                <input type="text" id="idPelunasanManual"
+                                    class="form-control form-control-sm border-primary"
+                                    placeholder="Contoh: PLN-BNI-001">
+                                <small class="text-muted" style="font-size: 0.70rem;">Ketik ID yang diinginkan.
+                                    Kosongkan jika ingin ID otomatis.</small>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label fw-bold small">Jenis Pelunasan</label>
-                                <!-- Tambahkan onchange="toggleAngsuranKe()" di sini -->
                                 <select id="pelJenis" class="form-select form-select-sm" onchange="toggleAngsuranKe()">
                                     <option value="Angsuran Bulanan">Angsuran Bulanan (Sesuai Jadwal)</option>
                                     <option value="Dipercepat">Pelunasan Dipercepat (Cut-off Semua Sisa)</option>
                                 </select>
                             </div>
 
-                            <!-- TAMBAHAN BARU: Dropdown Pilih Angsuran -->
+                            <!-- DROPDOWN PILIH ANGSURAN OTOMATIS -->
                             <div class="mb-3" id="divPilihAngsuran">
                                 <label class="form-label fw-bold small text-primary">Pilih Angsuran Ke-
                                     (Opsional)</label>
-                                <!-- Tambahkan onchange="isiNominalOtomatis()" di sini -->
                                 <select id="pilihAngsuranKe" class="form-select form-select-sm border-primary"
                                     onchange="isiNominalOtomatis()">
                                     <option value="">-- Pilih Kontrak Terlebih Dahulu --</option>
