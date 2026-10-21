@@ -434,6 +434,7 @@ function loadKontrakTerkait() {
     }
 
     muatOspiAngsuranOtomatis();
+    toggleAngsuranKe(); // <--- Tambahkan baris ini agar otomatis mendeteksi jika mode dipercepat aktif
 }
 
 // ==========================================
@@ -460,11 +461,38 @@ function bukaModalPelunasan() {
 function toggleAngsuranKe() {
     var jenis = document.getElementById('pelJenis').value;
     var divAngsuran = document.getElementById('divPilihAngsuran');
+    var inputPokok = document.getElementById('pelPokok');
+    var inputBunga = document.getElementById('pelBunga');
+    var idKontrak = document.getElementById('pelKontrak').value;
+
     if (jenis === "Angsuran Bulanan") {
         divAngsuran.style.display = "block";
+        inputPokok.value = ""; // Reset agar diisi dari pilihan angsuran
+        inputBunga.value = "";
     } else {
         divAngsuran.style.display = "none";
         document.getElementById('pilihAngsuranKe').value = "";
+
+        // --- TAMBAHAN OTOMATIS HITUNG SISA OS UNTUK PELUNASAN DIPERCEPAT ---
+        if (idKontrak) {
+            let dataKontrak = dbPenarikan.find(p => p.id_kontrak === idKontrak);
+            if (dataKontrak) {
+                // Hitung total pokok yang sudah dibayar sebelumnya untuk kontrak ini
+                let totalPokokLunas = dbPelunasan
+                    .filter(pel => pel.id_kontrak === idKontrak)
+                    .reduce((sum, pel) => sum + pel.pokok_dibayar, 0);
+                
+                let sisaOSAktif = dataKontrak.nilai_penarikan - totalPokokLunas;
+                if (sisaOSAktif < 0) sisaOSAktif = 0;
+
+                // Masukkan secara otomatis ke form pokok dibayar dengan format angka ribuan
+                inputPokok.value = Math.round(sisaOSAktif).toLocaleString('id-ID');
+            }
+        } else {
+            inputPokok.value = "0";
+        }
+        inputBunga.value = "0";
+        // -----------------------------------------------------------------
     }
 }
 
@@ -672,11 +700,12 @@ function hapusPelunasan(idPelunasan) {
     Swal.fire({
         title: 'Konfirmasi Hapus Pelunasan',
         html: `Apakah Anda yakin ingin menghapus data pelunasan ini?<br><br>
-               <b>ID Pelunasan:</b> ${dataPelunasan.id_pelunasan}<br>
-               <b>ID Kontrak:</b> ${dataPelunasan.id_kontrak || '-'}<br>
-               <b>Tanggal Bayar:</b> ${dataPelunasan.tgl_bayar}<br>
-               <b>Pokok:</b> ${formatRp(dataPelunasan.pokok_dibayar)}<br><br>
-               <span class="text-danger small">Perhatian: Status jadwal angsuran terkait akan otomatis dikembalikan menjadi 'Belum' lunas dan data dihapus dari Cloud.</span>`,
+                <b>ID Pelunasan:</b> ${dataPelunasan.id_pelunasan}<br>
+                <b>ID Kontrak:</b> ${dataPelunasan.id_kontrak || '-'}<br>
+                <b>Jenis:</b> ${dataPelunasan.jenis_pelunasan || 'Angsuran Bulanan'}<br>
+                <b>Tanggal Bayar:</b> ${dataPelunasan.tgl_bayar}<br>
+                <b>Pokok:</b> ${formatRp(dataPelunasan.pokok_dibayar)}<br><br>
+                <span class="text-danger small">Perhatian: Status jadwal angsuran dan kontrak terkait akan otomatis dikembalikan normal dan data dihapus dari Cloud.</span>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
@@ -685,11 +714,33 @@ function hapusPelunasan(idPelunasan) {
         cancelButtonText: 'Batal'
     }).then((result) => {
         if (result.isConfirmed) {
-            if (dataPelunasan.id_jadwal_terkait) {
+            let idKontrakTerkait = dataPelunasan.id_kontrak;
+
+            // --- 1. PENANGANAN JIKA INI PELUNASAN DIPERCEPAT (CUT-OFF) ---
+            if (dataPelunasan.jenis_pelunasan && dataPelunasan.jenis_pelunasan.includes("Dipercepat")) {
+                // Kembalikan status kontrak di dbPenarikan menjadi Aktif (atau kosong/normal)
+                if (typeof dbPenarikan !== 'undefined') {
+                    let kontrak = dbPenarikan.find(k => k.id_kontrak === idKontrakTerkait);
+                    if (kontrak) {
+                        kontrak.status = "Aktif"; // Sesuaikan dengan status aktif di sistem Anda
+                    }
+                }
+                // Kembalikan semua jadwal angsuran kontrak ini yang tadinya Void/Cut-Off menjadi "Belum"
+                if (typeof dbJadwalAngsuran !== 'undefined') {
+                    dbJadwalAngsuran.forEach(j => {
+                        if (j.id_kontrak === idKontrakTerkait && j.status_bayar === "Void/Cut-Off") {
+                            j.status_bayar = "Belum";
+                        }
+                    });
+                }
+            } 
+            // --- 2. PENANGANAN JIKA INI ANGANSURAN BULANAN BIASA ---
+            else if (dataPelunasan.id_jadwal_terkait) {
                 var jadwalTerkait = dbJadwalAngsuran.find(j => j.id_jadwal === dataPelunasan.id_jadwal_terkait);
                 if (jadwalTerkait) jadwalTerkait.status_bayar = "Belum";
             }
 
+            // Hapus data dari array lokal dbPelunasan
             dbPelunasan = dbPelunasan.filter(p => p.id_pelunasan !== idPelunasan);
 
             // Tampilkan Loading
@@ -700,7 +751,7 @@ function hapusPelunasan(idPelunasan) {
                 didOpen: () => { Swal.showLoading(); }
             });
 
-            // Siapkan payload data terbaru untuk tab Pelunasan dan Jadwal
+            // Siapkan payload data terbaru untuk tab Pelunasan dan Jadwal (ditambah payload Penarikan jika perlu update status kontrak)
             var pelunasanFullPayload = [["id_pelunasan", "id_fasilitas", "id_kontrak", "tgl_bayar", "jenis_pelunasan", "pokok_dibayar", "bunga_dibayar", "id_jadwal_terkait"]];
             dbPelunasan.forEach(pel => {
                 pelunasanFullPayload.push([pel.id_pelunasan, pel.id_fasilitas, pel.id_kontrak, pel.tgl_bayar, pel.jenis_pelunasan, pel.pokok_dibayar, pel.bunga_dibayar, pel.id_jadwal_terkait]);
@@ -711,7 +762,7 @@ function hapusPelunasan(idPelunasan) {
                 jadwalFullPayload.push([j.id_jadwal, j.id_kontrak, j.angsuran_ke, j.tgl_jatuh_tempo, j.saldo_pokok_awal, j.angsuran_pokok, j.angsuran_bunga, j.status_bayar]);
             });
 
-            // Kirim pembaruan full sheet ke Google Apps Script
+            // Kirim pembaruan full sheet ke Google Apps Script (Pelunasan & Jadwal Angsuran)
             fetch(WEB_APP_URL, {
                 method: "POST",
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -729,7 +780,7 @@ function hapusPelunasan(idPelunasan) {
                 if (res.status === "success") {
                     renderData();
                     triggerFilterUpdate();
-                    Swal.fire('Terhapus!', 'Data pelunasan berhasil dihapus dari Cloud.', 'success');
+                    Swal.fire('Terhapus!', 'Data pelunasan berhasil dihapus dan status dikembalikan.', 'success');
                 } else {
                     Swal.fire('Error', 'Gagal memperbarui Google Sheets: ' + res.message, 'error');
                 }
