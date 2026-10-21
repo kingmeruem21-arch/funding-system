@@ -3,27 +3,116 @@
    Versi: Final dengan Validasi Kontrak Ganda & Status Menunggak
    ======================================================= */
 
-var WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxlYe6zzOIho-5b6ri-AFmwz3F15LhE8d6PUyECwj5Qmb44L9cNIhhS3V4ut2Svueif/exec";
+var WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwQqGUxAN0sFl8a6lif622narQxp86MtIPxJIyR06VqtwvQoLb6lXj4nsHUVBqkXf9n/exec";
+// ==========================================
+// PENGATURAN KATA SANDI APLIKASI (ROBUST)
+// ==========================================
+var KATA_SANDI_INTERNAL = "admin123";
 
-var dbMasterFasilitas = JSON.parse(localStorage.getItem('db_master_fasilitas')) || [];
-var dbPenarikan = JSON.parse(localStorage.getItem('db_penarikan')) || [];
-var dbJadwalAngsuran = JSON.parse(localStorage.getItem('db_jadwal_angsuran')) || [];
-var dbPelunasan = JSON.parse(localStorage.getItem('db_pelunasan')) || [];
+function verifikasiSandi(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    var inputEl = document.getElementById('inputSandiAplikasi');
+    if (!inputEl) return false;
 
-function simpanKeLocalStorage() {
-    localStorage.setItem('db_master_fasilitas', JSON.stringify(dbMasterFasilitas));
-    localStorage.setItem('db_penarikan', JSON.stringify(dbPenarikan));
-    localStorage.setItem('db_jadwal_angsuran', JSON.stringify(dbJadwalAngsuran));
-    localStorage.setItem('db_pelunasan', JSON.stringify(dbPelunasan));
-    syncToGoogleSheet();
+    var inputPass = inputEl.value.trim();
+    var elPesan = document.getElementById('pesanSandiSalah');
+    var overlay = document.getElementById('loginOverlay');
+
+    if (inputPass === KATA_SANDI_INTERNAL) {
+        // LOGIN BERHASIL
+        sessionStorage.setItem("isLoggedInFunding", "true");
+        if (overlay) {
+            overlay.classList.add('fade-out');
+            setTimeout(() => {
+                overlay.classList.remove('d-flex');
+                overlay.classList.add('d-none-animated');
+            }, 500);
+        }
+        inputEl.value = '';
+        if (elPesan) elPesan.classList.add('d-none');
+        
+        // --- TAMBAHAN BARU ---
+        resetIdleTimer(); // Mulai menghitung 30 menit dari sekarang
+        // ---------------------
+    } else {
+        if (elPesan) elPesan.classList.remove('d-none');
+        inputEl.value = '';
+    }
+    return false;
 }
 
-function syncToGoogleSheet() {
-    if (!WEB_APP_URL) return;
-    var masterDataPayload = [["id_fasilitas", "kreditur", "nama_fasilitas", "tujuan_fasilitas", "sifat_fasilitas", "limit_schedule", "baki_debet_awal", "interest_rate"]];
-    dbMasterFasilitas.forEach(m => masterDataPayload.push([m.id_fasilitas, m.kreditur, m.nama_fasilitas || '', m.tujuan_fasilitas || '', m.sifat_fasilitas, m.limit_schedule, m.baki_debet_awal || 0, m.interest_rate || '']));
-    fetch(WEB_APP_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "save", sheetName: "master_fasilitas", payload: masterDataPayload }) });
+function kunciAplikasi() {
+    sessionStorage.removeItem("isLoggedInFunding");
+    var overlay = document.getElementById('loginOverlay');
+    
+    // --- TAMBAHAN BARU ---
+    clearTimeout(idleTimeout); // Hentikan timer jika sengaja dilogout
+    // ---------------------
+
+    if (overlay) {
+        overlay.classList.remove('d-none-animated');
+        overlay.classList.add('d-flex');
+        setTimeout(() => {
+            overlay.classList.remove('fade-out');
+        }, 10);
+    }
 }
+
+function cekStatusLogin() {
+    var statusLogin = sessionStorage.getItem("isLoggedInFunding");
+    var overlay = document.getElementById('loginOverlay');
+    
+    if (overlay) {
+        if (statusLogin === "true") {
+            // Sembunyikan langsung tanpa animasi jika halaman di-refresh dan user sudah login
+            overlay.classList.add('fade-out');
+            overlay.classList.remove('d-flex');
+            overlay.classList.add('d-none-animated');
+        } else {
+            // Tampilkan langsung tanpa animasi
+            overlay.classList.remove('fade-out');
+            overlay.classList.remove('d-none-animated');
+            overlay.classList.add('d-flex');
+        }
+    }
+}
+// ==========================================
+// FITUR AUTO-LOGOUT JIKA IDLE (TIDAK AKTIF) 30 MENIT
+// ==========================================
+var idleTimeout;
+var waktuIdleLimit = 30 * 60 * 1000; // 30 menit dikali 60 detik dikali 1000 milidetik
+
+function resetIdleTimer() {
+    // Bersihkan timer sebelumnya (jika ada) setiap kali ada aktivitas
+    clearTimeout(idleTimeout);
+    
+    // Hanya pasang timer baru jika pengguna sedang dalam status login
+    if (sessionStorage.getItem("isLoggedInFunding") === "true") {
+        idleTimeout = setTimeout(() => {
+            // Jika waktu 30 menit habis tanpa aktivitas, kunci aplikasi
+            Swal.fire({
+                title: 'Sesi Berakhir',
+                text: 'Aplikasi otomatis dikunci karena tidak ada aktivitas selama 30 menit.',
+                icon: 'warning',
+                confirmButtonText: 'Login Kembali',
+                allowOutsideClick: false
+            }).then(() => {
+                kunciAplikasi();
+            });
+        }, waktuIdleLimit);
+    }
+}
+
+// Daftarkan event-event yang dianggap sebagai "aktivitas" oleh pengguna
+// Setiap kali event ini terjadi, waktu idle 30 menit akan diulang dari awal
+document.addEventListener("mousemove", resetIdleTimer);
+document.addEventListener("keydown", resetIdleTimer);
+document.addEventListener("click", resetIdleTimer);
+document.addEventListener("scroll", resetIdleTimer);
+var dbMasterFasilitas = [];
+var dbPenarikan = [];
+var dbJadwalAngsuran = [];
+var dbPelunasan = [];
 
 function formatRp(angka) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0); }
 
@@ -204,6 +293,13 @@ function renderData() {
 
         let filteredJadwal = dbJadwalAngsuran.filter(j => {
             if (j.tgl_jatuh_tempo === "-") return false;
+            
+            // Tambahkan baris ini agar yang sudah Lunas tidak ikut terhitung di ringkasan atas
+            if (j.status_bayar === "Lunas") return false; 
+
+            var tglMulai = document.getElementById('filterTglMulai').value;
+            var tglSelesai = document.getElementById('filterTglSelesai').value;
+            
             if (!tglMulai && !tglSelesai) return true;
             if (tglMulai && !tglSelesai) return j.tgl_jatuh_tempo >= tglMulai;
             if (!tglMulai && tglSelesai) return j.tgl_jatuh_tempo <= tglSelesai;
@@ -245,13 +341,52 @@ function renderData() {
         if (elTotal) elTotal.innerText = formatRp(sumPokokJadwal + sumBungaJadwal);
     }
 
-    // TABEL PENARIKAN
+    // TABEL PENARIKAN DENGAN PENCARIAN OTOMATIS
     var tbodyPenarikan = document.getElementById('tBodyPenarikan');
     if (tbodyPenarikan) {
         tbodyPenarikan.innerHTML = "";
-        dbPenarikan.forEach(p => {
-            tbodyPenarikan.innerHTML += `<tr><td>${p.id_kontrak}</td><td>${p.id_fasilitas}</td><td>${p.nama_customer}</td><td>${p.tgl_realisasi}</td><td>${formatRp(p.nilai_penarikan)}</td><td>${p.tenor} Bln</td><td><span class="badge ${p.status.includes('Lunas') ? 'bg-success' : 'bg-primary'}">${p.status}</span></td><td class="text-center"><button class="btn btn-danger btn-sm py-0 px-2" onclick="hapusPenarikan('${p.id_kontrak}')">🗑️ Hapus</button></td></tr>`;
+        var keywordCari = document.getElementById('inputCariPenarikan') ? document.getElementById('inputCariPenarikan').value.toLowerCase() : "";
+
+        var filteredPenarikan = dbPenarikan.filter(p => {
+            if (!keywordCari) return true;
+            let matchKontrak = p.id_kontrak.toLowerCase().includes(keywordCari);
+            let matchCustomer = p.nama_customer.toLowerCase().includes(keywordCari);
+            let matchFasilitas = p.id_fasilitas.toLowerCase().includes(keywordCari);
+            return matchKontrak || matchCustomer || matchFasilitas;
         });
+
+        if (filteredPenarikan.length === 0) {
+            // Ubah colspan menjadi 9 karena ada tambahan 1 kolom baru
+            tbodyPenarikan.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Tidak ada data penarikan yang cocok dengan pencarian.</td></tr>`;
+        } else {
+            filteredPenarikan.forEach(p => {
+                
+                // === KALKULASI SISA OS PER KONTRAK ===
+                // Ambil semua total pokok yang sudah dibayar khusus untuk ID Kontrak ini
+                let totalPokokLunas = dbPelunasan
+                    .filter(pel => pel.id_kontrak === p.id_kontrak)
+                    .reduce((sum, pel) => sum + pel.pokok_dibayar, 0);
+                
+                let sisaOS = p.nilai_penarikan - totalPokokLunas;
+                if (sisaOS < 0) sisaOS = 0; // Proteksi agar tidak minus jika ada lebih bayar desimal
+                
+                // Beri warna merah jika masih ada hutang, hijau jika sudah lunas (0)
+                let textWarnaOS = sisaOS === 0 ? 'text-success' : 'text-danger';
+                // =====================================
+
+                tbodyPenarikan.innerHTML += `<tr>
+                    <td><b>${p.id_kontrak}</b></td>
+                    <td>${p.id_fasilitas}</td>
+                    <td>${p.nama_customer}</td>
+                    <td>${p.tgl_realisasi}</td>
+                    <td class="text-end fw-bold">${formatRp(p.nilai_penarikan)}</td>
+                    <td class="text-end fw-bold ${textWarnaOS}">${formatRp(sisaOS)}</td>
+                    <td class="text-center">${p.tenor} Bln</td>
+                    <td class="text-center"><span class="badge ${p.status.includes('Lunas') ? 'bg-success' : 'bg-primary'}">${p.status}</span></td>
+                    <td class="text-center"><button class="btn btn-danger btn-sm py-0 px-2" onclick="hapusPenarikan('${p.id_kontrak}')">🗑️ Hapus</button></td>
+                </tr>`;
+            });
+        }
     }
 
     // TABEL RIWAYAT PELUNASAN
@@ -397,7 +532,7 @@ function simpanPelunasan() {
     let osAktif = (fas.baki_debet_awal || 0) + totalPenarikan - totalPokokLunas;
 
     if (pokok > (osAktif + 1000)) {
-        Swal.fire('Error Validasi', `Pembayaran Pokok (${formatRp(pokok)}) melebih Baki Debet Fasilitas yang tersisa (${formatRp(osAktif)}). Harap periksa kembali.`, 'error');
+        Swal.fire('Error Validasi', `Pembayaran Pokok (${formatRp(pokok)}) melebihi Baki Debet Fasilitas yang tersisa (${formatRp(osAktif)}).`, 'error');
         return;
     }
 
@@ -410,14 +545,19 @@ function simpanPelunasan() {
         if (idJadwalTerpilih) {
             jadwalDitemukan = dbJadwalAngsuran.find(j => j.id_jadwal === idJadwalTerpilih);
         } else {
-            jadwalDitemukan = dbJadwalAngsuran.find(j => j.id_kontrak === idKontrak && (j.status_bayar === "Belum" || j.status_bayar === "Menunggak"));
+            jadwalDitemukan = dbJadwalAngsuran.find(j => j.id_kontrak === idKontrak && (j.status_bayar === "Belum" || j.status_bayar.includes("Menunggak")));
         }
 
         if (jadwalDitemukan) {
+            // PROTEKSI PEMBULATAN ANGSURAN TERAKHIR MENJADI Rp 0 JIKA SISANYA KECIL (< Rp 1.000)
+            let sisaPokokBerjalan = jadwalDitemukan.saldo_pokok_awal - pokok;
+            if (sisaPokokBerjalan > 0 && sisaPokokBerjalan < 1000) {
+                // Otomatis genapkan pokok yang dibayar agar sisa pokok bersih menjadi 0
+                pokok += sisaPokokBerjalan;
+            }
+
             jadwalDitemukan.status_bayar = "Lunas";
             idJadwalYangDilunasi = jadwalDitemukan.id_jadwal;
-        } else {
-            Swal.fire('Info', 'Tidak ada jadwal angsuran yang berstatus Belum/Menunggak untuk kontrak ini.', 'info');
         }
     } else if (jenis === "Dipercepat") {
         dbPenarikan.forEach(p => { if (p.id_kontrak === idKontrak) p.status = "Lunas Dipercepat"; });
@@ -426,20 +566,7 @@ function simpanPelunasan() {
         });
     }
 
-    var objPelunasan = {
-        id_pelunasan: "PLN-" + new Date().getTime(),
-        id_fasilitas: idFasilitas,
-        id_kontrak: idKontrak,
-        tgl_bayar: tglBayar,
-        jenis_pelunasan: jenis,
-        pokok_dibayar: pokok,
-        bunga_dibayar: bunga,
-        id_jadwal_terkait: idJadwalYangDilunasi
-    };
-    // --- MEMBUAT ID PELUNASAN OTOMATIS BERBASIS POLA ---
-    // --- MEMBUAT ID PELUNASAN OTOMATIS BERBASIS POLA (PLNSN) ---
     let digitKontrak = idKontrak.length >= 4 ? idKontrak.slice(-4) : idKontrak;
-
     let namaCustClean = "CUST";
     let dataKontrak = dbPenarikan.find(p => p.id_kontrak === idKontrak);
     if (dataKontrak && dataKontrak.nama_customer) {
@@ -455,7 +582,7 @@ function simpanPelunasan() {
     var idPelunasanGen = `PLNSN-${digitKontrak}-${namaCustClean}-${singkatanBank}`;
 
     var objPelunasan = {
-        id_pelunasan: idPelunasanGen, // Menggunakan awalan PLNSN
+        id_pelunasan: idPelunasanGen,
         id_fasilitas: idFasilitas,
         id_kontrak: idKontrak,
         tgl_bayar: tglBayar,
@@ -464,18 +591,79 @@ function simpanPelunasan() {
         bunga_dibayar: bunga,
         id_jadwal_terkait: idJadwalYangDilunasi
     };
-    dbPelunasan.push(objPelunasan);
 
-    simpanKeLocalStorage();
-    if (modalPelunasan) modalPelunasan.hide();
+    // Tampilkan Loading
+    Swal.fire({
+        title: 'Menyimpan Pelunasan...',
+        text: 'Mengupdate database Google Sheets',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
 
-    Swal.fire('Berhasil', 'Pelunasan berhasil diproses & Jadwal Angsuran diperbarui!', 'success');
-    renderData();
-    triggerFilterUpdate();
+    // 1. Siapkan payload full sheet untuk tabel Pelunasan
+    var pelunasanFullPayload = [["id_pelunasan", "id_fasilitas", "id_kontrak", "tgl_bayar", "jenis_pelunasan", "pokok_dibayar", "bunga_dibayar", "id_jadwal_terkait"]];
+    // Masukkan data lama + data baru pelunasan
+    let temporaryPelunasanList = [...dbPelunasan, objPelunasan];
+    temporaryPelunasanList.forEach(pel => {
+        pelunasanFullPayload.push([pel.id_pelunasan, pel.id_fasilitas, pel.id_kontrak, pel.tgl_bayar, pel.jenis_pelunasan, pel.pokok_dibayar, pel.bunga_dibayar, pel.id_jadwal_terkait]);
+    });
+
+    // 2. Siapkan payload full sheet untuk tabel Jadwal Angsuran (status lunas / void terupdate)
+    var jadwalFullPayload = [["id_jadwal", "id_kontrak", "angsuran_ke", "tgl_jatuh_tempo", "saldo_pokok_awal", "angsuran_pokok", "angsuran_bunga", "status_bayar"]];
+    dbJadwalAngsuran.forEach(j => {
+        jadwalFullPayload.push([j.id_jadwal, j.id_kontrak, j.angsuran_ke, j.tgl_jatuh_tempo, j.saldo_pokok_awal, j.angsuran_pokok, j.angsuran_bunga, j.status_bayar]);
+    });
+
+    // 3. Siapkan payload full sheet untuk tabel Penarikan (jika ada status yang berubah jadi Lunas Dipercepat)
+    var penarikanFullPayload = [["id_kontrak", "id_fasilitas", "nama_customer", "nilai_penarikan", "tgl_realisasi", "tenor", "status"]];
+    dbPenarikan.forEach(p => {
+        penarikanFullPayload.push([p.id_kontrak, p.id_fasilitas, p.nama_customer, p.nilai_penarikan, p.tgl_realisasi, p.tenor, p.status]);
+    });
+
+    // Kirim pembaruan berurutan: Update Pelunasan -> Update Jadwal -> Update Penarikan
+    fetch(WEB_APP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "update_full_sheet", sheetName: "Pelunasan", dataFull: pelunasanFullPayload })
+    })
+    .then(() => {
+        return fetch(WEB_APP_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ action: "update_full_sheet", sheetName: "jadwal_angsuran", dataFull: jadwalFullPayload })
+        });
+    })
+    .then(() => {
+        return fetch(WEB_APP_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ action: "update_full_sheet", sheetName: "Penarikan", dataFull: penarikanFullPayload })
+        });
+    })
+    .then(response => response.json())
+    .then(res => {
+        if (res.status === "success") {
+            dbPelunasan.push(objPelunasan);
+            if (modalPelunasan) modalPelunasan.hide();
+
+            Swal.fire('Berhasil', 'Pelunasan berhasil diproses & Cloud Google Sheets diperbarui!', 'success');
+            renderData();
+            triggerFilterUpdate();
+        } else {
+            Swal.fire('Error', 'Gagal menyimpan ke Google Sheets: ' + res.message, 'error');
+        }
+    })
+    .catch(err => {
+        console.error("Error Pelunasan:", err);
+        Swal.fire('Koneksi Gagal', 'Tidak dapat terhubung ke Google Script.', 'error');
+    });
 }
 
 // ==========================================
 // HAPUS PELUNASAN DENGAN DETAIL KONFIRMASI
+// ==========================================
+// ==========================================
+// HAPUS PELUNASAN TERHUBUNG GOOGLE SHEETS
 // ==========================================
 function hapusPelunasan(idPelunasan) {
     var dataPelunasan = dbPelunasan.find(p => p.id_pelunasan === idPelunasan);
@@ -488,7 +676,7 @@ function hapusPelunasan(idPelunasan) {
                <b>ID Kontrak:</b> ${dataPelunasan.id_kontrak || '-'}<br>
                <b>Tanggal Bayar:</b> ${dataPelunasan.tgl_bayar}<br>
                <b>Pokok:</b> ${formatRp(dataPelunasan.pokok_dibayar)}<br><br>
-               <span class="text-danger small">Perhatian: Status jadwal angsuran terkait akan otomatis dikembalikan menjadi 'Belum' lunas.</span>`,
+               <span class="text-danger small">Perhatian: Status jadwal angsuran terkait akan otomatis dikembalikan menjadi 'Belum' lunas dan data dihapus dari Cloud.</span>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
@@ -504,11 +692,52 @@ function hapusPelunasan(idPelunasan) {
 
             dbPelunasan = dbPelunasan.filter(p => p.id_pelunasan !== idPelunasan);
 
-            simpanKeLocalStorage();
-            renderData();
-            triggerFilterUpdate();
+            // Tampilkan Loading
+            Swal.fire({
+                title: 'Menghapus Pelunasan...',
+                text: 'Memperbarui Google Sheets',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
 
-            Swal.fire('Terhapus!', 'Data pelunasan berhasil dibatalkan dan status jadwal dikembalikan.', 'success');
+            // Siapkan payload data terbaru untuk tab Pelunasan dan Jadwal
+            var pelunasanFullPayload = [["id_pelunasan", "id_fasilitas", "id_kontrak", "tgl_bayar", "jenis_pelunasan", "pokok_dibayar", "bunga_dibayar", "id_jadwal_terkait"]];
+            dbPelunasan.forEach(pel => {
+                pelunasanFullPayload.push([pel.id_pelunasan, pel.id_fasilitas, pel.id_kontrak, pel.tgl_bayar, pel.jenis_pelunasan, pel.pokok_dibayar, pel.bunga_dibayar, pel.id_jadwal_terkait]);
+            });
+
+            var jadwalFullPayload = [["id_jadwal", "id_kontrak", "angsuran_ke", "tgl_jatuh_tempo", "saldo_pokok_awal", "angsuran_pokok", "angsuran_bunga", "status_bayar"]];
+            dbJadwalAngsuran.forEach(j => {
+                jadwalFullPayload.push([j.id_jadwal, j.id_kontrak, j.angsuran_ke, j.tgl_jatuh_tempo, j.saldo_pokok_awal, j.angsuran_pokok, j.angsuran_bunga, j.status_bayar]);
+            });
+
+            // Kirim pembaruan full sheet ke Google Apps Script
+            fetch(WEB_APP_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: "update_full_sheet", sheetName: "Pelunasan", dataFull: pelunasanFullPayload })
+            })
+            .then(() => {
+                return fetch(WEB_APP_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action: "update_full_sheet", sheetName: "jadwal_angsuran", dataFull: jadwalFullPayload })
+                });
+            })
+            .then(response => response.json())
+            .then(res => {
+                if (res.status === "success") {
+                    renderData();
+                    triggerFilterUpdate();
+                    Swal.fire('Terhapus!', 'Data pelunasan berhasil dihapus dari Cloud.', 'success');
+                } else {
+                    Swal.fire('Error', 'Gagal memperbarui Google Sheets: ' + res.message, 'error');
+                }
+            })
+            .catch(err => {
+                console.error("Error Hapus Pelunasan:", err);
+                Swal.fire('Koneksi Gagal', 'Tidak dapat terhubung ke Google Script.', 'error');
+            });
         }
     });
 }
@@ -574,6 +803,9 @@ function renderTabelMasterFasilitas() {
 // ==========================================
 // UPLOAD KARTU PIUTANG DENGAN VALIDASI KONTRAK GANDA (POIN 2)
 // ==========================================
+// ==========================================
+// HAPUS PENARIKAN / KONTRAK TERHUBUNG GOOGLE SHEETS
+// ==========================================
 function hapusPenarikan(idKontrak) {
     var dataPenarikan = dbPenarikan.find(p => p.id_kontrak === idKontrak);
     if (!dataPenarikan) return;
@@ -584,7 +816,7 @@ function hapusPenarikan(idKontrak) {
                <b>ID Kontrak:</b> ${dataPenarikan.id_kontrak}<br>
                <b>Customer:</b> ${dataPenarikan.nama_customer}<br>
                <b>Nilai Penarikan:</b> ${formatRp(dataPenarikan.nilai_penarikan)}<br><br>
-               <span class="text-danger small">Peringatan: Seluruh Jadwal Angsuran yang terikat dengan kontrak ini juga akan ikut terhapus permanen!</span>`,
+               <span class="text-danger small">Peringatan: Seluruh Jadwal Angsuran dan data penarikan kontrak ini akan terhapus permanen dari Cloud!</span>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
@@ -596,11 +828,49 @@ function hapusPenarikan(idKontrak) {
             dbPenarikan = dbPenarikan.filter(p => p.id_kontrak !== idKontrak);
             dbJadwalAngsuran = dbJadwalAngsuran.filter(j => j.id_kontrak !== idKontrak);
 
-            simpanKeLocalStorage();
-            renderData();
-            triggerFilterUpdate();
+            Swal.fire({
+                title: 'Menghapus Kontrak...',
+                text: 'Memperbarui Google Sheets',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
 
-            Swal.fire('Terhapus!', 'Data kontrak dan seluruh jadwal angsurannya berhasil dihapus.', 'success');
+            var penarikanFullPayload = [["id_kontrak", "id_fasilitas", "nama_customer", "nilai_penarikan", "tgl_realisasi", "tenor", "status"]];
+            dbPenarikan.forEach(p => {
+                penarikanFullPayload.push([p.id_kontrak, p.id_fasilitas, p.nama_customer, p.nilai_penarikan, p.tgl_realisasi, p.tenor, p.status]);
+            });
+
+            var jadwalFullPayload = [["id_jadwal", "id_kontrak", "angsuran_ke", "tgl_jatuh_tempo", "saldo_pokok_awal", "angsuran_pokok", "angsuran_bunga", "status_bayar"]];
+            dbJadwalAngsuran.forEach(j => {
+                jadwalFullPayload.push([j.id_jadwal, j.id_kontrak, j.angsuran_ke, j.tgl_jatuh_tempo, j.saldo_pokok_awal, j.angsuran_pokok, j.angsuran_bunga, j.status_bayar]);
+            });
+
+            fetch(WEB_APP_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: "update_full_sheet", sheetName: "Penarikan", dataFull: penarikanFullPayload })
+            })
+            .then(() => {
+                return fetch(WEB_APP_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action: "update_full_sheet", sheetName: "jadwal_angsuran", dataFull: jadwalFullPayload })
+                });
+            })
+            .then(response => response.json())
+            .then(res => {
+                if (res.status === "success") {
+                    renderData();
+                    triggerFilterUpdate();
+                    Swal.fire('Terhapus!', 'Data kontrak dan jadwal berhasil dihapus dari Cloud.', 'success');
+                } else {
+                    Swal.fire('Error', 'Gagal memperbarui Google Sheets: ' + res.message, 'error');
+                }
+            })
+            .catch(err => {
+                console.error("Error Hapus Penarikan:", err);
+                Swal.fire('Koneksi Gagal', 'Tidak dapat terhubung ke Google Script.', 'error');
+            });
         }
     });
 }
@@ -710,16 +980,126 @@ function prosesUploadKartu() {
             dbPenarikan.push({ id_kontrak: idKontrakGen, id_fasilitas: selectedFasilitas, nama_customer: namaCustomer, nilai_penarikan: nilaiPenarikan, tgl_realisasi: tglRealisasi, tenor: tenor, bunga_efektif: bungaEffResult, status: "Aktif", link_bukti: fileInput.files[0].name });
             dbJadwalAngsuran = dbJadwalAngsuran.concat(objJadwalArray);
 
-            simpanKeLocalStorage();
-            Swal.fire('Berhasil!', 'Data Penarikan dengan ID: ' + idKontrakGen + ' berhasil diekstrak dan disimpan.', 'success');
+            // ================= KODE CLOUD UPLOAD BARU =================
+            // 1. Siapkan 1 baris data Penarikan sesuai urutan kolom Google Sheets
+            var rowPenarikanData = [idKontrakGen, selectedFasilitas, namaCustomer, nilaiPenarikan, tglRealisasi, tenor, "Aktif"];
+            
+            // 2. Siapkan puluhan baris Jadwal Angsuran menjadi format matriks (Bulk Insert)
+            var multiRowJadwalData = objJadwalArray.map(j => [
+                j.id_jadwal, j.id_kontrak, j.angsuran_ke, j.tgl_jatuh_tempo, j.saldo_pokok_awal, j.angsuran_pokok, j.angsuran_bunga, j.status_bayar
+            ]);
 
-            fileInput.value = "";
-            if (elemIdManual) elemIdManual.value = "";
+            // 3. Tampilkan efek Loading
+            Swal.fire({
+                title: 'Mengunggah Data...',
+                text: 'Sedang menyimpan ratusan baris ke Google Sheets. Mohon tunggu.',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
 
-            renderData(); triggerFilterUpdate();
+            // 4. Proses tembak data ke Google Apps Script
+            fetch(WEB_APP_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({
+                    action: "upload_excel",
+                    dataPenarikan: rowPenarikanData,
+                    dataJadwal: multiRowJadwalData
+                })
+            })
+            .then(response => response.json())
+            .then(res => {
+                if (res.status === "success") {
+                    // Masukkan ke memori web agar tabel langsung muncul tanpa perlu refresh
+                    dbPenarikan.push({ id_kontrak: idKontrakGen, id_fasilitas: selectedFasilitas, nama_customer: namaCustomer, nilai_penarikan: nilaiPenarikan, tgl_realisasi: tglRealisasi, tenor: tenor, status: "Aktif" });
+                    dbJadwalAngsuran = dbJadwalAngsuran.concat(objJadwalArray);
+
+                    Swal.fire('Berhasil!', 'Data Penarikan (' + idKontrakGen + ') sukses di-upload ke Database!', 'success');
+                    
+                    fileInput.value = "";
+                    if (elemIdManual) elemIdManual.value = "";
+                    renderData(); triggerFilterUpdate();
+                } else {
+                    Swal.fire('Error Database', 'Gagal menyimpan ke Sheet: ' + res.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error("Error Upload:", error);
+                Swal.fire('Error Koneksi', 'Gagal terhubung ke Google Script.', 'error');
+            });
+            // ================= END KODE CLOUD UPLOAD =================
         } catch (err) { Swal.fire('Error', 'Gagal membaca Excel: ' + err.message, 'error'); }
     };
     reader.readAsArrayBuffer(fileInput.files[0]);
 }
 
-document.addEventListener("DOMContentLoaded", function () { renderData(); triggerFilterUpdate(); });
+document.addEventListener("DOMContentLoaded", function () {
+    cekStatusLogin(); // Periksa apakah pengguna sudah login
+    
+    // ... (kode loading SweetAlert dan fetch data Google Sheets di bawahnya tetap sama)
+    // Munculkan loading agar pengguna tahu web sedang mengambil data
+    Swal.fire({
+        title: 'Sinkronisasi Database...',
+        text: 'Mengambil data dari Google Sheets',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    // Proses sedot data dari Google Sheets
+    fetch(WEB_APP_URL)
+        .then(response => response.json())
+        .then(data => {
+            // Fungsi penerjemah: Mengubah teks dari Google Sheets kembali jadi Angka murni
+            // Fungsi penerjemah yang sudah diperbaiki untuk membaca desimal
+            function parseAngka(val) {
+                if (!val) return 0;
+                if (typeof val === 'number') return val;
+                // Tambahkan tanda titik (.) di sebelah \d agar desimal tidak dihapus
+                let numStr = val.toString().replace(/[^\d.]/g, ''); 
+                return parseFloat(numStr) || 0;
+            }
+
+            // Memasukkan data ke variabel aplikasi & Menerjemahkan angka-angkanya
+            dbMasterFasilitas = (data.dbMasterFasilitas || []).map(m => {
+                m.limit_schedule = parseAngka(m.limit_schedule);
+                m.baki_debet_awal = parseAngka(m.baki_debet_awal);
+                return m;
+            });
+            
+            dbPenarikan = (data.dbPenarikan || []).map(p => {
+                p.nilai_penarikan = parseAngka(p.nilai_penarikan);
+                p.tenor = parseAngka(p.tenor);
+                return p;
+            });
+            
+            dbJadwalAngsuran = (data.dbJadwalAngsuran || []).map(j => {
+                j.angsuran_pokok = parseAngka(j.angsuran_pokok);
+                j.angsuran_bunga = parseAngka(j.angsuran_bunga);
+                j.saldo_pokok_awal = parseAngka(j.saldo_pokok_awal);
+                j.angsuran_ke = parseAngka(j.angsuran_ke);
+                return j;
+            });
+            
+            dbPelunasan = (data.dbPelunasan || []).map(p => {
+                p.pokok_dibayar = parseAngka(p.pokok_dibayar);
+                p.bunga_dibayar = parseAngka(p.bunga_dibayar);
+                return p;
+            });
+
+            Swal.close(); // Tutup loading
+            renderData(); // Tampilkan ke tabel
+            triggerFilterUpdate(); // Update kalkulasi dashboard
+        })
+        .catch(error => {
+            console.error("Error Fetch:", error);
+            Swal.fire('Koneksi Gagal', 'Gagal memuat data dari Google Sheets.', 'error');
+        });
+});
+// FUNGSI DEBOUNCE AGAR PENCARIAN TIDAK BERAT / LEMOT
+let timerCari;
+function debounceCariPenarikan() {
+    clearTimeout(timerCari);
+    timerCari = setTimeout(() => {
+        renderData();
+    }, 300); // Jeda 300 milidetik setelah ketikan terakhir berhenti
+}

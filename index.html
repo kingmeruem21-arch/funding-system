@@ -12,6 +12,27 @@
 </head>
 
 <body style="zoom: 1;">
+    
+    <!-- LAYAR LOGIN LOCK APLIKASI -->
+    <div id="loginOverlay" class="position-fixed top-0 start-0 w-100 h-100 bg-dark d-flex align-items-center justify-content-center" style="z-index: 9999; background: linear-gradient(135deg, #0c2340 0%, #051326 100%);">
+        <div class="card p-4 shadow-lg border-0 text-center" style="width: 360px; border-radius: 15px;">
+            <div class="mb-3">
+                <span style="font-size: 3rem;">🔐</span>
+            </div>
+            <h5 class="fw-bold text-dark mb-1">Akses Sistem Pendanaan</h5>
+            <p class="text-muted small mb-3">Internal Leasing Finance System</p>
+            
+            <form onsubmit="verifikasiSandi(event); return false;">
+                <div class="mb-3">
+                    <input type="password" id="inputSandiAplikasi" class="form-control text-center fw-bold" placeholder="Masukkan Kata Sandi..." required style="letter-spacing: 2px;">
+                </div>
+                <button type="button" class="btn btn-primary w-100 fw-bold py-2" onclick="verifikasiSandi(event)">Masuk ke Sistem</button>
+            </form>
+            <div id="pesanSandiSalah" class="text-danger small mt-2 d-none">⚠️ Kata sandi salah! Akses ditolak.</div>
+        </div>
+    </div> <!-- PENUTUP KOTAK PUTIH LOGIN -->
+
+    <!-- WRAPPER UTAMA DASHBOARD -->
     <div class="d-flex" id="wrapperMain">
         <!-- Sidebar -->
         <div id="sidebar-wrapper" class="text-white p-3">
@@ -32,7 +53,7 @@
             <div class="p-3 rounded border border-secondary mt-5" style="background-color: #051326;">
                 <h6 class="fw-bold text-warning mb-3 border-bottom border-secondary pb-2" style="font-size: 0.85rem;">⚙️
                     Filter Rentang Periode</h6>
-                <label class="form-label text-white-50 fw-bold small mb-1">Dari Tanggal:</label>
+                    <label class="form-label text-white-50 fw-bold small mb-1">Dari Tanggal:</label>
                 <input type="date" id="filterTglMulai" class="form-control form-control-sm mb-2"
                     onchange="triggerFilterUpdate()">
                 <label class="form-label text-white-50 fw-bold small mb-1">Sampai Tanggal (Cut-Off):</label>
@@ -41,6 +62,8 @@
                 <button class="btn btn-outline-light btn-sm w-100 py-1 fw-bold" style="font-size: 0.75rem;"
                     onclick="resetFilterPeriode()">🔄 Reset Filter</button>
             </div>
+            <!-- TOMBOL KUNCI / LOGOUT DI SIDEBAR -->
+            <button class="btn btn-outline-danger btn-sm w-100 mt-3 py-1 fw-bold" onclick="kunciAplikasi()">🔒 Kunci Aplikasi</button>
         </div>
 
         <div id="page-content-wrapper">
@@ -189,52 +212,55 @@
             </div>
 
             <!-- HALAMAN PENARIKAN -->
-            <div id="page-penarikan" class="page-section">
-                <h4 class="fw-bold mb-3">Buat Penarikan / Kontrak Baru</h4>
-                <div class="card p-4 shadow-sm border-0 mb-4">
-                    <h6 class="text-primary fw-bold mb-3">Upload "Kartu Piutang" dari Bank (Format Excel)</h6>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold small text-muted">Pilih Fasilitas / Kreditur Tujuan
-                                *</label>
-                            <select id="pilihFasilitasUpload" class="form-select form-select-sm" required></select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold small text-primary">ID Kontrak Manual (Opsional)</label>
-                            <input type="text" id="idKontrakManual" class="form-control form-control-sm border-primary"
-                                placeholder="Contoh: KTR-BNI-001">
-                            <small class="text-muted" style="font-size: 0.70rem;">Ketik ID yang diinginkan. Kosongkan
-                                jika ingin ID otomatis/dari Excel.</small>
-                        </div>
-                    </div>
-                    <div class="row align-items-center">
-                        <div class="col-md-7 mb-2 mb-md-0">
-                            <input type="file" id="fileKartuPiutang" class="form-control" accept=".xls,.xlsx">
-                        </div>
-                        <div class="col-md-5">
-                            <button class="btn btn-primary fw-bold w-100" onclick="prosesUploadKartu()">📑 Ekstrak &
-                                Buat Jadwal</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="table-responsive bg-white p-3 rounded shadow-sm">
-                    <table class="table table-bordered align-middle">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>ID Kontrak</th>
-                                <th>Fasilitas</th>
-                                <th>Nama Customer</th>
-                                <th>Tgl Realisasi</th>
-                                <th>Nilai Penarikan</th>
-                                <th>Tenor</th>
-                                <th>Status</th>
-                                <th class="text-center">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tBodyPenarikan"></tbody>
-                    </table>
-                </div>
+<div id="page-penarikan" class="page-section">
+    <h4 class="fw-bold mb-3">Data Penarikan / Kontrak Baru</h4>
+    <!-- KOTAK PENCARIHAN DEBITUR -->
+<div class="input-group input-group-sm mb-3">
+    <span class="input-group-text bg-dark text-white fw-bold">🔍 Cari Debitur / Kontrak:</span>
+    <input type="text" id="inputCariPenarikan" class="form-control" placeholder="Ketik nama customer atau ID kontrak..." oninput="debounceCariPenarikan()">
+</div>
+    <!-- KOTAK UPLOAD COMPACT (1 BARIS) -->
+    <div class="card p-3 shadow-sm border-0 mb-3" style="background-color: #f8f9fa;">
+        <h6 class="text-primary fw-bold mb-2" style="font-size: 0.9rem;">📑 Upload "Kartu Piutang" Bank (Excel)</h6>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label fw-bold small text-muted mb-1">Fasilitas Tujuan *</label>
+                <select id="pilihFasilitasUpload" class="form-select form-select-sm" required></select>
             </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold small text-primary mb-1">ID Kontrak (Opsional)</label>
+                <input type="text" id="idKontrakManual" class="form-control form-control-sm border-primary" placeholder="Kosongi utk ID otomatis">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold small text-muted mb-1">Pilih File Excel (.xls, .xlsx)</label>
+                <input type="file" id="fileKartuPiutang" class="form-control form-control-sm" accept=".xls,.xlsx">
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary btn-sm fw-bold w-100" onclick="prosesUploadKartu()">Ekstrak Jadwal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABEL PENARIKAN DENGAN SCROLL MAX-HEIGHT -->
+    <div class="table-responsive bg-white p-2 rounded shadow-sm border" style="max-height: 65vh; overflow-y: auto;">
+        <table class="table table-bordered table-sm align-middle mb-0" style="font-size: 0.85rem;">
+            <thead class="table-dark text-center" style="background-color: #0c2340;">
+                <tr>
+                    <th>ID Kontrak</th>
+                    <th>Fasilitas</th>
+                    <th>Nama Customer</th>
+                    <th>Tgl Realisasi</th>
+                    <th>Nilai Penarikan</th>
+                    <th>Sisa OS (Pokok)</th>
+                    <th>Tenor</th>
+                    <th>Status</th>
+                    <th class="text-center">Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="tBodyPenarikan"></tbody>
+        </table>
+    </div>
+</div>
 
             <!-- HALAMAN JADWAL ANGSURAN -->
             <div id="page-jadwal" class="page-section">
